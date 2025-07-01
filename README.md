@@ -30,6 +30,17 @@ The demo will:
 - Verify data integrity using Merkle tree cryptographic proofs
 - Display transfer progress and performance metrics
 
-### Development Commands
+## Documentation
 
-See [CLAUDE.md](CLAUDE.md) for complete development workflow including testing, linting, and security checks.
+- **[API Reference](docs/api.md)** - Complete API documentation with all classes and methods
+- **[Usage Guide](docs/usage.md)** - Practical examples and production deployment patterns
+- **[Development Guide](CLAUDE.md)** - Development workflow including testing, linting, and security checks
+
+## Features
+
+- **🔐 Secure Channels**: Noise XX protocol with mutual authentication
+- **🌐 Hybrid Discovery**: Kademlia DHT for global + BeeQuiet for LAN discovery
+- **🔍 Data Integrity**: BLAKE2b Merkle trees verify all transfers
+- **⚡ Resumable Transfers**: State persistence for interrupted transfers
+- **📡 Event-Driven**: Async event system for reactive applications
+- **🔑 Key Management**: Ed25519 identity + X25519 session keys
