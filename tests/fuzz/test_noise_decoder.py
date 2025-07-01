@@ -1,7 +1,5 @@
 """Fuzz tests for Noise payload decoder."""
 
-import asyncio
-
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
