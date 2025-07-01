@@ -46,8 +46,10 @@ class KeyStore:
 
         if keystore_file.exists():
             try:
-                with open(keystore_file, "rb") as f:
-                    encrypted_data = f.read()
+                loop = asyncio.get_event_loop()
+                encrypted_data = await loop.run_in_executor(
+                    None, lambda: keystore_file.read_bytes()
+                )
 
                 if self._passphrase:
                     self._fernet = self._derive_fernet_key(self._passphrase)
@@ -73,13 +75,18 @@ class KeyStore:
             else:
                 encrypted_data = data
 
-            with open(temp_file, "wb") as f:
-                f.write(encrypted_data)
-
-            temp_file.replace(keystore_file)
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                None, lambda: temp_file.write_bytes(encrypted_data)
+            )
+            await loop.run_in_executor(
+                None, lambda: temp_file.replace(keystore_file)
+            )
         except Exception as e:
             if temp_file.exists():
-                temp_file.unlink()
+                await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: temp_file.unlink()
+                )
             raise KeyStoreError(f"Failed to save keystore: {e}")
 
     def _derive_fernet_key(self, passphrase: str) -> Fernet:
@@ -120,10 +127,11 @@ class KeyStore:
             try:
                 encoded_data = base64.b64encode(key_data).decode("ascii")
 
+                import time
                 self._keys[key_id] = {
                     "data": encoded_data,
                     "encrypted": encrypted,
-                    "created_at": asyncio.get_event_loop().time(),
+                    "created_at": time.time(),
                 }
 
                 await self._save_keystore()
@@ -248,7 +256,8 @@ class KeyStore:
 
     async def open(self) -> None:
         """Open the keystore for operations."""
-        await self._ensure_initialized()
+        if not self._loaded:
+            await self._ensure_initialized()
 
     async def close(self) -> None:
         """Close the keystore and flush any pending writes."""
