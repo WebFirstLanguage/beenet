@@ -69,7 +69,7 @@ class TestBeeQuietDiscovery:
         await beequiet_discovery.start()
 
         peer_id = "target_peer"
-        session_key = b"session_key_32_bytes_exactly!!!"
+        session_key = b"session_key_32_bytes_exactly!!!!"
         peer_address = ("127.0.0.1", 8000)
 
         await beequiet_discovery.send_heartbeat(peer_id, session_key, peer_address)
@@ -82,7 +82,7 @@ class TestBeeQuietDiscovery:
         await beequiet_discovery.start()
 
         peer_id = "target_peer"
-        session_key = b"session_key_32_bytes_exactly!!!"
+        session_key = b"session_key_32_bytes_exactly!!!!"
         peer_address = ("127.0.0.1", 8000)
 
         await beequiet_discovery.send_goodbye(peer_id, session_key, peer_address)
@@ -113,7 +113,7 @@ class TestBeeQuietDiscovery:
     @pytest.mark.asyncio
     async def test_encrypt_decrypt_message(self, beequiet_discovery):
         """Test message encryption and decryption."""
-        session_key = b"session_key_32_bytes_exactly!!!"
+        session_key = b"session_key_32_bytes_exactly!!!!"
         message = b"test message data"
 
         encrypted = beequiet_discovery.encrypt_message(message, session_key)
