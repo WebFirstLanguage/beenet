@@ -121,8 +121,15 @@ class Peer:
                     return False
                 peer_info = dict(peer_info_result)
 
+            port_value = peer_info.get("port", 0)
+            if isinstance(port_value, int):
+                port = port_value
+            elif isinstance(port_value, str):
+                port = int(port_value)
+            else:
+                port = 0
             connection = await self.connection_manager.connect_to_peer(
-                peer_id, str(peer_info["address"]), int(peer_info["port"])
+                peer_id, str(peer_info["address"]), port
             )
 
             if connection:

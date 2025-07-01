@@ -1,7 +1,7 @@
 """Async connection manager for peer communications."""
 
 import asyncio
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 from ..crypto import NoiseChannel
 from .errors import CryptoError, NetworkError
@@ -106,7 +106,7 @@ class ConnectionManager:
             transport = writer.transport
             if transport is None:
                 raise NetworkError("Transport is None")
-            connection = Connection(peer_id, noise_channel, transport)
+            connection = Connection(peer_id, noise_channel, cast(asyncio.Transport, transport))
 
             async with self._lock:
                 self._connections[peer_id] = connection
@@ -209,7 +209,7 @@ class ConnectionManager:
 
             if transport is None:
                 raise NetworkError("Transport is None")
-            connection = Connection(peer_id, noise_channel, transport)
+            connection = Connection(peer_id, noise_channel, cast(asyncio.Transport, transport))
 
             async with self._lock:
                 self._connections[peer_id] = connection

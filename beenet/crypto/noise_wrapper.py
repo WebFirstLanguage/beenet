@@ -142,7 +142,8 @@ class NoiseChannel:
             return None
 
         try:
-            return self._noise.get_handshake_hash()
+            hash_result = self._noise.get_handshake_hash()
+            return bytes(hash_result) if hash_result else None
         except Exception:
             return None
 
@@ -157,14 +158,14 @@ class NoiseChannel:
         return self._remote_static_key
 
     @property
-    def cipher_state_send(self) -> Any:
+    def cipher_state_send(self) -> Optional[Any]:
         """Get the send cipher state for advanced operations."""
         if self._noise and self._handshake_complete:
             return self._noise.cipher_state_encrypt
         return None
 
     @property
-    def cipher_state_recv(self) -> Any:
+    def cipher_state_recv(self) -> Optional[Any]:
         """Get the receive cipher state for advanced operations."""
         if self._noise and self._handshake_complete:
             return self._noise.cipher_state_decrypt
