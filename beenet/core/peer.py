@@ -123,13 +123,13 @@ class Peer:
 
             port_value = peer_info.get("port", 0)
             if isinstance(port_value, int):
-                port = port_value
+                port_int = port_value
             elif isinstance(port_value, str):
-                port = int(port_value)
+                port_int = int(port_value)
             else:
-                port = 0
+                port_int = 0
             connection = await self.connection_manager.connect_to_peer(
-                peer_id, str(peer_info["address"]), port
+                peer_id, str(peer_info["address"]), port_int
             )
 
             if connection:
