@@ -1,23 +1,15 @@
 """Pytest configuration and shared fixtures for beenet tests."""
 
-import asyncio
 import tempfile
 from pathlib import Path
 from typing import AsyncGenerator, Generator
 
 import pytest
+import pytest_asyncio
 
 from beenet.core import EventBus, Peer
 from beenet.crypto import Identity, KeyManager, KeyStore
 from beenet.discovery import BeeQuietDiscovery, KademliaDiscovery
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for the test session."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest.fixture
@@ -27,17 +19,18 @@ def temp_dir() -> Generator[Path, None, None]:
         yield Path(tmpdir)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def keystore(temp_dir: Path) -> AsyncGenerator[KeyStore, None]:
     """Create a test keystore."""
     keystore_path = temp_dir / "test_keystore"
     keystore = KeyStore(keystore_path)
     await keystore.open()
     yield keystore
-    await keystore.close()
+    if keystore.is_open:
+        await keystore.close()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def identity(keystore: KeyStore) -> AsyncGenerator[Identity, None]:
     """Create a test identity."""
     identity = Identity(keystore)
@@ -45,7 +38,7 @@ async def identity(keystore: KeyStore) -> AsyncGenerator[Identity, None]:
     yield identity
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def key_manager(keystore: KeyStore) -> AsyncGenerator[KeyManager, None]:
     """Create a test key manager."""
     key_manager = KeyManager(keystore)
@@ -59,7 +52,7 @@ def event_bus() -> EventBus:
     return EventBus()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_peer(temp_dir: Path) -> AsyncGenerator[Peer, None]:
     """Create a test peer."""
     keystore_path = temp_dir / "peer_keystore"
@@ -69,7 +62,7 @@ async def test_peer(temp_dir: Path) -> AsyncGenerator[Peer, None]:
         await peer.stop()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def two_test_peers(temp_dir: Path) -> AsyncGenerator[tuple[Peer, Peer], None]:
     """Create two test peers for integration testing."""
     peer1_keystore = temp_dir / "peer1_keystore"
@@ -98,7 +91,7 @@ def large_sample_data() -> bytes:
     return b"Large test data chunk. " * (10 * 1024 * 1024 // 23)  # ~10MB
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def kademlia_discovery() -> AsyncGenerator[KademliaDiscovery, None]:
     """Create a test Kademlia discovery instance."""
     discovery = KademliaDiscovery()
@@ -107,7 +100,7 @@ async def kademlia_discovery() -> AsyncGenerator[KademliaDiscovery, None]:
         await discovery.stop()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def beequiet_discovery() -> AsyncGenerator[BeeQuietDiscovery, None]:
     """Create a test BeeQuiet discovery instance."""
     discovery = BeeQuietDiscovery("test_peer", lambda x: None)

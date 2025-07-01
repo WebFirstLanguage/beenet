@@ -162,23 +162,30 @@ class TestTransferStream:
         def progress_callback(progress):
             nonlocal callback_called
             callback_called = True
-            assert 0.0 <= progress <= 1.0
+            assert 0.0 <= progress <= 100.0  # Progress is percentage, not decimal
+
+        from beenet.transfer.stream import TransferState
+
+        stream.state = TransferState(transfer_id, 10)
+        stream.state.completed_chunks = {0, 1, 2}  # 30% progress
 
         stream.set_progress_callback(progress_callback)
         stream._update_progress()
 
         assert callback_called
 
-    def test_get_missing_chunks(self, test_file):
+    @pytest.mark.asyncio
+    async def test_get_missing_chunks(self, test_file):
         """Test getting missing chunks."""
         transfer_id = "missing_test_001"
         stream = TransferStream(transfer_id)
 
-        stream.state = type(
-            "MockState", (), {"total_chunks": 10, "completed_chunks": {0, 2, 4, 6, 8}}
-        )()
+        from beenet.transfer.stream import TransferState
 
-        missing = stream.get_missing_chunks()
+        stream.state = TransferState(transfer_id, 10)
+        stream.state.completed_chunks = {0, 2, 4, 6, 8}
+
+        missing = await stream.get_missing_chunks()
         expected_missing = [1, 3, 5, 7, 9]
 
         assert missing == expected_missing

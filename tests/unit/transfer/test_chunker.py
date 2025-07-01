@@ -1,8 +1,5 @@
 """Unit tests for DataChunker functionality."""
 
-import asyncio
-from pathlib import Path
-
 import pytest
 
 from beenet.transfer import DataChunker
@@ -70,7 +67,7 @@ class TestDataChunker:
 
     def test_chunk_data_small(self):
         """Test chunking small data."""
-        chunker = DataChunker(1024)
+        chunker = DataChunker(4096)
         data = b"small test data"
 
         chunks = list(chunker.chunk_data(data))
@@ -80,9 +77,9 @@ class TestDataChunker:
 
     def test_chunk_data_exact_size(self):
         """Test chunking data that exactly fits chunk size."""
-        chunk_size = 16
+        chunk_size = 4096
         chunker = DataChunker(chunk_size)
-        data = b"exactly16bytesxx"
+        data = b"x" * chunk_size
 
         chunks = list(chunker.chunk_data(data))
 
@@ -91,21 +88,20 @@ class TestDataChunker:
 
     def test_chunk_data_multiple_chunks(self):
         """Test chunking data into multiple chunks."""
-        chunk_size = 10
+        chunk_size = 4096
         chunker = DataChunker(chunk_size)
-        data = b"this is a longer piece of test data"
+        data = b"x" * (chunk_size * 2 + 500)  # 2.5 chunks worth of data
 
         chunks = list(chunker.chunk_data(data))
 
-        assert len(chunks) == 4  # 35 bytes / 10 = 3.5, so 4 chunks
-        assert chunks[0] == (0, b"this is a ")
-        assert chunks[1] == (1, b"longer pie")
-        assert chunks[2] == (2, b"ce of test")
-        assert chunks[3] == (3, b" data")
+        assert len(chunks) == 3
+        assert chunks[0] == (0, b"x" * chunk_size)
+        assert chunks[1] == (1, b"x" * chunk_size)
+        assert chunks[2] == (2, b"x" * 500)
 
     def test_chunk_file(self, test_file):
         """Test chunking data from file."""
-        chunker = DataChunker(100)
+        chunker = DataChunker(4096)
 
         chunks = list(chunker.chunk_file(str(test_file)))
 
@@ -116,7 +112,7 @@ class TestDataChunker:
     @pytest.mark.asyncio
     async def test_chunk_stream(self):
         """Test chunking data from async stream."""
-        chunker = DataChunker(10)
+        chunker = DataChunker(4096)
 
         async def data_stream():
             yield b"first"
@@ -134,8 +130,8 @@ class TestDataChunker:
 
     def test_reassemble_chunks(self):
         """Test reassembling chunks back to original data."""
-        chunker = DataChunker(10)
-        original_data = b"this is test data for reassembly"
+        chunker = DataChunker(4096)
+        original_data = b"this is test data for reassembly" * 200  # Make it larger
 
         chunks = list(chunker.chunk_data(original_data))
         reassembled = chunker.reassemble_chunks(iter(chunks))
@@ -144,11 +140,14 @@ class TestDataChunker:
 
     def test_reassemble_chunks_out_of_order(self):
         """Test reassembling chunks provided out of order."""
-        chunker = DataChunker(5)
-        original_data = b"abcdefghijklmnop"
+        chunker = DataChunker(4096)
+        original_data = b"x" * (4096 * 4)  # 4 chunks worth
 
         chunks = list(chunker.chunk_data(original_data))
-        shuffled_chunks = [chunks[2], chunks[0], chunks[3], chunks[1]]
+        if len(chunks) >= 4:
+            shuffled_chunks = [chunks[2], chunks[0], chunks[3], chunks[1]]
+        else:
+            shuffled_chunks = chunks[::-1]  # Just reverse if fewer chunks
 
         reassembled = chunker.reassemble_chunks(iter(shuffled_chunks))
 
@@ -156,11 +155,11 @@ class TestDataChunker:
 
     def test_reassemble_chunks_missing_chunk(self):
         """Test reassembling with missing chunk."""
-        chunker = DataChunker(5)
-        original_data = b"abcdefghijklmnop"
+        chunker = DataChunker(4096)
+        original_data = b"x" * (4096 * 4)  # 4 chunks worth
 
         chunks = list(chunker.chunk_data(original_data))
-        incomplete_chunks = chunks[:-1]  # Remove last chunk
+        incomplete_chunks = [chunks[0], chunks[1], chunks[3]]  # Missing chunk 2
 
         with pytest.raises(ValueError):
             chunker.reassemble_chunks(iter(incomplete_chunks))

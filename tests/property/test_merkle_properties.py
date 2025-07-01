@@ -4,7 +4,7 @@ import pytest
 from hypothesis import assume, given
 from hypothesis import strategies as st
 
-from beenet.transfer import MerkleProof, MerkleTree
+from beenet.transfer import MerkleTree
 
 
 class TestMerkleTreeProperties:

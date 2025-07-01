@@ -8,7 +8,7 @@ from ..crypto import Identity, KeyManager, KeyStore
 from ..discovery import BeeQuietDiscovery, KademliaDiscovery, NATTraversal
 from ..transfer import TransferStream
 from .connection import ConnectionManager
-from .events import EventBus
+from .events import EventBus, EventType
 
 
 class Peer:
@@ -28,10 +28,10 @@ class Peer:
         self.identity = Identity(self.keystore)
         self.key_manager = KeyManager(self.keystore)
         self.event_bus = EventBus()
-        self.connection_manager = ConnectionManager(self.event_bus)
+        self.connection_manager = ConnectionManager(self.event_bus, self.key_manager)
 
         self.kademlia = KademliaDiscovery()
-        self.beequiet = BeeQuietDiscovery(peer_id, self._on_peer_discovered)
+        self.beequiet = BeeQuietDiscovery(peer_id, None)
         self.nat_traversal = NATTraversal()
 
         self._running = False
@@ -56,6 +56,8 @@ class Peer:
 
             await self.connection_manager.start(listen_port)
             actual_port = self.connection_manager.listen_port
+            if actual_port is None:
+                raise RuntimeError("Failed to get listen port from connection manager")
 
             if bootstrap_nodes:
                 self.kademlia.bootstrap_nodes = bootstrap_nodes
@@ -67,7 +69,7 @@ class Peer:
 
             self._running = True
             await self.event_bus.emit(
-                "peer_started", {"peer_id": self.peer_id, "listen_port": actual_port}
+                EventType.PEER_CONNECTED, {"peer_id": self.peer_id, "listen_port": actual_port}
             )
 
         except Exception as e:
@@ -90,7 +92,7 @@ class Peer:
             self._transfers.clear()
             self._running = False
 
-            await self.event_bus.emit("peer_stopped", {"peer_id": self.peer_id})
+            await self.event_bus.emit(EventType.PEER_DISCONNECTED, {"peer_id": self.peer_id})
 
         except Exception as e:
             self._running = False
@@ -118,13 +120,13 @@ class Peer:
                 if not peer_info:
                     return False
 
-            success = await self.connection_manager.connect_to_peer(
+            connection = await self.connection_manager.connect_to_peer(
                 peer_id, peer_info["address"], peer_info["port"]
             )
 
-            if success:
+            if connection:
                 await self.event_bus.emit(
-                    "peer_connected",
+                    EventType.PEER_CONNECTED,
                     {
                         "peer_id": peer_id,
                         "address": peer_info["address"],
@@ -132,9 +134,10 @@ class Peer:
                     },
                 )
 
-            return success
+            return connection is not None
 
-        except Exception:
+        except Exception as e:
+            print(f"Connection error: {e}")
             return False
 
     async def send_file(
@@ -161,7 +164,7 @@ class Peer:
                 f"{self.peer_id}_{peer_id}_{file_path.name}_{asyncio.get_event_loop().time()}"
             )
 
-        if not await self.connection_manager.is_connected(peer_id):
+        if not self.connection_manager.is_connected(peer_id):
             connected = await self.connect_to_peer(peer_id)
             if not connected:
                 raise ConnectionError(f"Failed to connect to peer {peer_id}")
@@ -172,7 +175,7 @@ class Peer:
         self._transfers[transfer_id] = transfer_stream
 
         await self.event_bus.emit(
-            "transfer_started",
+            EventType.TRANSFER_STARTED,
             {
                 "transfer_id": transfer_id,
                 "peer_id": peer_id,
@@ -203,7 +206,7 @@ class Peer:
             transfer_stream = self._transfers[transfer_id]
 
             await self.event_bus.emit(
-                "transfer_started",
+                EventType.TRANSFER_STARTED,
                 {"transfer_id": transfer_id, "save_path": str(save_path), "direction": "receive"},
             )
 
@@ -211,7 +214,8 @@ class Peer:
 
             if success:
                 await self.event_bus.emit(
-                    "transfer_completed", {"transfer_id": transfer_id, "save_path": str(save_path)}
+                    EventType.TRANSFER_COMPLETED,
+                    {"transfer_id": transfer_id, "save_path": str(save_path)},
                 )
 
             return success

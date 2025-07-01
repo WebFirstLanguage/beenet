@@ -1,10 +1,8 @@
 """Async resumable transfer streams with state persistence."""
 
-import asyncio
 import json
-import os
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable, Dict, Optional
+from typing import Callable, Optional
 
 from ..core.errors import TransferError
 from .chunker import DataChunker
@@ -227,7 +225,7 @@ class TransferStream:
             with open(state_file, "w") as f:
                 json.dump(state_data, f, indent=2)
 
-        except (OSError, json.JSONEncodeError) as e:
+        except (OSError, json.JSONDecodeError) as e:
             raise TransferError(f"Failed to save state: {e}")
 
     def set_progress_callback(self, callback: Callable[[float], None]) -> None:

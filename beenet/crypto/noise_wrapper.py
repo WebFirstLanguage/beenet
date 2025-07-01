@@ -1,9 +1,8 @@
 """Async Noise XX protocol wrapper for secure peer channels."""
 
-import asyncio
-from typing import Any, Optional, Tuple
+from typing import Any, Optional
 
-from noise.connection import NoiseConnection
+from noise.connection import Keypair, NoiseConnection
 
 from ..core.errors import CryptoError
 
@@ -35,7 +34,7 @@ class NoiseChannel:
             self._noise = NoiseConnection.from_name(protocol_name)
 
             if static_key:
-                self._noise.set_keypair_from_private_bytes(NoiseConnection.STATIC, static_key)
+                self._noise.set_keypair_from_private_bytes(Keypair.STATIC, static_key)
 
             self._noise.set_as_initiator() if self.is_initiator else self._noise.set_as_responder()
             self._noise.start_handshake()
@@ -62,7 +61,7 @@ class NoiseChannel:
             raise CryptoError("Handshake not started - call start_handshake first")
 
         try:
-            payload = self._noise.read_message(message)
+            self._noise.read_message(message)
 
             if self._noise.handshake_finished:
                 self._handshake_complete = True

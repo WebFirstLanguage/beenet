@@ -2,7 +2,7 @@
 
 This library provides secure peer-to-peer networking capabilities with:
 - Noise XX protocol for secure channels with mutual authentication
-- Hybrid discovery using Kademlia DHT and BeeQuiet LAN protocol  
+- Hybrid discovery using Kademlia DHT and BeeQuiet LAN protocol
 - Merkle tree-based data transfer with integrity verification
 - Ed25519 identity keys and rotating session keys
 """

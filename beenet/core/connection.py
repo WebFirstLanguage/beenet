@@ -1,11 +1,11 @@
 """Async connection manager for peer communications."""
 
 import asyncio
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 from ..crypto import NoiseChannel
 from .errors import CryptoError, NetworkError
-from .events import EventBus
+from .events import EventBus, EventType
 
 
 class Connection:
@@ -55,8 +55,9 @@ class ConnectionManager:
     - Key rotation with graceful connection migration
     """
 
-    def __init__(self, event_bus: EventBus):
+    def __init__(self, event_bus: EventBus, key_manager=None):
         self.event_bus = event_bus
+        self.key_manager = key_manager
         self._connections: Dict[str, Connection] = {}
         self._servers: Dict[str, asyncio.Server] = {}
         self._lock = asyncio.Lock()
@@ -90,7 +91,14 @@ class ConnectionManager:
         """
         try:
             noise_channel = NoiseChannel(is_initiator=False)
-            await noise_channel.start_handshake()
+
+            static_key = None
+            if self.key_manager:
+                key_pair = await self.key_manager.get_current_static_key()
+                if key_pair:
+                    static_key = key_pair[0]  # private key bytes
+
+            await noise_channel.start_handshake(static_key)
 
             peer_address = writer.get_extra_info("peername")
             peer_id = f"incoming_{peer_address[0]}_{peer_address[1]}"
@@ -101,10 +109,10 @@ class ConnectionManager:
                 self._connections[peer_id] = connection
 
             await self.event_bus.emit(
-                "incoming_connection", {"peer_id": peer_id, "address": peer_address}
+                EventType.PEER_CONNECTED, {"peer_id": peer_id, "address": peer_address}
             )
 
-        except Exception as e:
+        except Exception:
             writer.close()
             await writer.wait_closed()
 
@@ -143,7 +151,7 @@ class ConnectionManager:
             actual_port = server.sockets[0].getsockname()[1]
             self._servers[f"{host}:{actual_port}"] = server
 
-            await self.event_bus.emit("server_started", {"host": host, "port": actual_port})
+            await self.event_bus.emit(EventType.NETWORK_ERROR, {"host": host, "port": actual_port})
 
             return actual_port
 
@@ -159,7 +167,7 @@ class ConnectionManager:
 
             self._servers.clear()
 
-            await self.event_bus.emit("server_stopped", {})
+            await self.event_bus.emit(EventType.NETWORK_ERROR, {})
 
         except Exception as e:
             raise NetworkError(f"Failed to stop server: {e}")
@@ -187,7 +195,14 @@ class ConnectionManager:
             transport = writer.transport
 
             noise_channel = NoiseChannel(is_initiator=True)
-            await noise_channel.start_handshake()
+
+            static_key = None
+            if self.key_manager:
+                key_pair = await self.key_manager.get_current_static_key()
+                if key_pair:
+                    static_key = key_pair[0]  # private key bytes
+
+            await noise_channel.start_handshake(static_key)
 
             connection = Connection(peer_id, noise_channel, transport)
 
@@ -195,7 +210,7 @@ class ConnectionManager:
                 self._connections[peer_id] = connection
 
             await self.event_bus.emit(
-                "peer_connected", {"peer_id": peer_id, "host": host, "port": port}
+                EventType.PEER_CONNECTED, {"peer_id": peer_id, "host": host, "port": port}
             )
 
             return connection
@@ -247,14 +262,14 @@ class ConnectionManager:
                 del self._connections[peer_id]
 
                 await self.event_bus.emit(
-                    "key_rotation_handled",
+                    EventType.KEY_ROTATED,
                     {"peer_id": peer_id, "old_key": old_key.hex(), "new_key": new_key.hex()},
                 )
 
             except Exception as e:
                 raise CryptoError(f"Failed to handle key rotation for {peer_id}: {e}")
 
-    def get_connected_peers(self) -> list[str]:
+    def get_connected_peer_ids(self) -> list[str]:
         """Get list of connected peer IDs.
 
         Returns:

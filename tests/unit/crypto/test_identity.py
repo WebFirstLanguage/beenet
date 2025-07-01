@@ -88,7 +88,7 @@ class TestIdentity:
         derived_peer_id = identity.derive_peer_id(identity.public_key)
         assert len(derived_peer_id) > 0
         assert isinstance(derived_peer_id, str)
-        
+
         derived_peer_id2 = identity.derive_peer_id(identity.public_key)
         assert derived_peer_id == derived_peer_id2
 
@@ -103,4 +103,6 @@ class TestIdentity:
             await identity.sign_message(b"test message")
 
         with pytest.raises(CryptoError):
-            await identity.verify_signature(b"test", b"valid_64_byte_signature" + b"\x00" * 37, b"short")
+            await identity.verify_signature(
+                b"test", b"valid_64_byte_signature" + b"\x00" * 37, b"short"
+            )

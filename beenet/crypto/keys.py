@@ -1,6 +1,5 @@
 """Key generation and rotation management."""
 
-import asyncio
 import json
 import time
 from typing import Optional, Tuple
@@ -8,7 +7,7 @@ from typing import Optional, Tuple
 from nacl.encoding import RawEncoder
 from nacl.public import PrivateKey, PublicKey
 
-from ..core.errors import CryptoError, KeyStoreError
+from ..core.errors import CryptoError
 from .identity import Identity
 from .keystore import KeyStore
 
@@ -165,7 +164,7 @@ class KeyManager:
                 "timestamp": int(time.time()),
             }
 
-            announcement_data = json.dumps(announcement).encode("utf-8")
+            json.dumps(announcement).encode("utf-8")
 
         except Exception as e:
             raise CryptoError(f"Failed to announce key rotation: {e}")

@@ -1,8 +1,7 @@
 """BLAKE2b-based Merkle tree implementation for data integrity."""
 
 import hashlib
-import math
-from typing import Any, List, Optional, Tuple
+from typing import List, Optional
 
 from ..core.errors import TransferError
 
@@ -182,6 +181,9 @@ class MerkleTree:
 
             if not self._root_hash:
                 self.build_tree()
+
+            if self._root_hash is None:
+                return False
 
             return proof.verify(self._root_hash)
 

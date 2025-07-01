@@ -1,6 +1,5 @@
 """Ed25519 identity key management for beenet peers."""
 
-import asyncio
 from typing import Optional, Tuple
 
 from nacl.encoding import RawEncoder
@@ -87,8 +86,10 @@ class Identity:
         """
         try:
             if len(public_key) != 32:
-                raise CryptoError(f"Invalid public key length: {len(public_key)}, expected 32 bytes")
-            
+                raise CryptoError(
+                    f"Invalid public key length: {len(public_key)}, expected 32 bytes"
+                )
+
             verify_key = VerifyKey(public_key, encoder=RawEncoder)
             verify_key.verify(message, signature)
             return True
@@ -139,7 +140,7 @@ class Identity:
             raise CryptoError("Identity not initialized - call load_or_generate first")
 
         try:
-            old_public_key = await self.export_public_key()
+            old_public_key = self.export_public_key()
 
             new_signing_key = SigningKey.generate()
             new_verify_key = new_signing_key.verify_key

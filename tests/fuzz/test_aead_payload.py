@@ -4,7 +4,6 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from beenet.core.errors import ProtocolError
 from beenet.discovery import BeeQuietDiscovery
 
 

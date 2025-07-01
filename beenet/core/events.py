@@ -39,7 +39,7 @@ class EventBus:
     - Error isolation between handlers
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._handlers: Dict[EventType, List[Callable[[Event], Any]]] = {}
         self._global_handlers: List[Callable[[Event], Any]] = []
         self._lock = asyncio.Lock()
@@ -96,7 +96,7 @@ class EventBus:
                             await handler(event)
                         else:
                             handler(event)
-                    except Exception as e:
+                    except Exception:
                         pass
 
             for handler in self._global_handlers:
@@ -105,7 +105,7 @@ class EventBus:
                         await handler(event)
                     else:
                         handler(event)
-                except Exception as e:
+                except Exception:
                     pass
 
     async def emit(

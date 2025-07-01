@@ -1,8 +1,7 @@
 """Data chunking with size negotiation for efficient transfer."""
 
-import asyncio
 from io import BytesIO
-from typing import AsyncIterator, Iterator, Optional, Tuple
+from typing import AsyncIterator, Iterator, Tuple
 
 
 class DataChunker:

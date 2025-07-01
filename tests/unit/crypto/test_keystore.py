@@ -37,8 +37,6 @@ class TestKeyStore:
     @pytest.mark.asyncio
     async def test_store_and_retrieve_key(self, keystore: KeyStore):
         """Test storing and retrieving keys."""
-        await keystore.open()
-
         test_key = b"test_key_data_32_bytes_exactly!!"
         key_id = "test_key_001"
 
@@ -50,16 +48,12 @@ class TestKeyStore:
     @pytest.mark.asyncio
     async def test_key_not_found(self, keystore: KeyStore):
         """Test retrieving non-existent key."""
-        await keystore.open()
-
         retrieved_key = await keystore.get_key("non_existent_key")
         assert retrieved_key is None
 
     @pytest.mark.asyncio
     async def test_delete_key(self, keystore: KeyStore):
         """Test key deletion."""
-        await keystore.open()
-
         test_key = b"test_key_data_32_bytes_exactly!!"
         key_id = "test_key_to_delete"
 
@@ -72,8 +66,6 @@ class TestKeyStore:
     @pytest.mark.asyncio
     async def test_list_keys(self, keystore: KeyStore):
         """Test listing stored keys."""
-        await keystore.open()
-
         key_ids = ["key1", "key2", "key3"]
         test_key = b"test_key_data_32_bytes_exactly!!"
 
@@ -109,17 +101,19 @@ class TestKeyStore:
         keystore_path = temp_dir / "error_keystore"
         keystore = KeyStore(keystore_path)
 
-        with pytest.raises(KeyStoreError):
-            await keystore.store_key("test_key", b"test_data")
+        try:
+            with pytest.raises(KeyStoreError):
+                await keystore.store_key("test_key", b"test_data")
 
-        with pytest.raises(KeyStoreError):
-            await keystore.get_key("test_key")
+            with pytest.raises(KeyStoreError):
+                await keystore.get_key("test_key")
+        finally:
+            if keystore.is_open:
+                await keystore.close()
 
     @pytest.mark.asyncio
     async def test_key_rotation(self, keystore: KeyStore):
         """Test key rotation functionality."""
-        await keystore.open()
-
         old_key = b"old_key_data_32_bytes_exactly!!!"
         new_key = b"new_key_data_32_bytes_exactly!!!"
         key_id = "rotating_key"
@@ -134,8 +128,6 @@ class TestKeyStore:
     @pytest.mark.asyncio
     async def test_secure_deletion(self, keystore: KeyStore):
         """Test secure key deletion."""
-        await keystore.open()
-
         sensitive_key = b"sensitive_key_32_bytes_exactly!"
         key_id = "sensitive_key"
 

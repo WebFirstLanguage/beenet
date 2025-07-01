@@ -3,7 +3,6 @@
 import asyncio
 import base64
 import json
-import os
 import secrets
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -52,7 +51,7 @@ class KeyStore:
                 )
 
                 if self._passphrase:
-                    self._fernet = self._derive_fernet_key(self._passphrase)
+                    self._fernet = await self._derive_fernet_key(self._passphrase)
                     decrypted_data = self._fernet.decrypt(encrypted_data)
                     self._keys = json.loads(decrypted_data.decode("utf-8"))
                 else:
@@ -76,30 +75,24 @@ class KeyStore:
                 encrypted_data = data
 
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
-                None, lambda: temp_file.write_bytes(encrypted_data)
-            )
-            await loop.run_in_executor(
-                None, lambda: temp_file.replace(keystore_file)
-            )
+            await loop.run_in_executor(None, lambda: temp_file.write_bytes(encrypted_data))
+            await loop.run_in_executor(None, lambda: temp_file.replace(keystore_file))
         except Exception as e:
             if temp_file.exists():
-                await asyncio.get_event_loop().run_in_executor(
-                    None, lambda: temp_file.unlink()
-                )
+                await asyncio.get_event_loop().run_in_executor(None, lambda: temp_file.unlink())
             raise KeyStoreError(f"Failed to save keystore: {e}")
 
-    def _derive_fernet_key(self, passphrase: str) -> Fernet:
+    async def _derive_fernet_key(self, passphrase: str) -> Fernet:
         """Derive Fernet key from passphrase."""
         salt_file = self.storage_path / "salt"
 
+        loop = asyncio.get_event_loop()
+
         if salt_file.exists():
-            with open(salt_file, "rb") as f:
-                salt = f.read()
+            salt = await loop.run_in_executor(None, lambda: salt_file.read_bytes())
         else:
             salt = secrets.token_bytes(32)
-            with open(salt_file, "wb") as f:
-                f.write(salt)
+            await loop.run_in_executor(None, lambda: salt_file.write_bytes(salt))
 
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
@@ -120,7 +113,7 @@ class KeyStore:
         """
         if not self._loaded:
             raise KeyStoreError("KeyStore not open - call open() first")
-            
+
         async with self._lock:
             await self._ensure_initialized()
 
@@ -128,6 +121,7 @@ class KeyStore:
                 encoded_data = base64.b64encode(key_data).decode("ascii")
 
                 import time
+
                 self._keys[key_id] = {
                     "data": encoded_data,
                     "encrypted": encrypted,
@@ -149,7 +143,7 @@ class KeyStore:
         """
         if not self._loaded:
             raise KeyStoreError("KeyStore not open - call open() first")
-            
+
         async with self._lock:
             await self._ensure_initialized()
 
@@ -242,7 +236,7 @@ class KeyStore:
             await self._ensure_initialized()
 
             self._passphrase = passphrase
-            self._fernet = self._derive_fernet_key(passphrase)
+            self._fernet = await self._derive_fernet_key(passphrase)
 
             await self._save_keystore()
 

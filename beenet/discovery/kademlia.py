@@ -37,7 +37,7 @@ class KademliaDiscovery:
         try:
             if self._running:
                 await self.stop()
-                
+
             self._listen_port = listen_port
             self._dht = Server()
 
