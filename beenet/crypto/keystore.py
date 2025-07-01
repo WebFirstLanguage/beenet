@@ -103,6 +103,29 @@ class KeyStore:
         key = base64.urlsafe_b64encode(kdf.derive(passphrase.encode()))
         return Fernet(key)
 
+    async def _store_key_unlocked(self, key_id: str, key_data: bytes, encrypted: bool = True) -> None:
+        """Store a key securely (internal, no lock).
+
+        Args:
+            key_id: Unique identifier for the key
+            key_data: Key material to store
+            encrypted: Whether to encrypt the key data
+        """
+        try:
+            encoded_data = base64.b64encode(key_data).decode("ascii")
+
+            import time
+
+            self._keys[key_id] = {
+                "data": encoded_data,
+                "encrypted": encrypted,
+                "created_at": time.time(),
+            }
+
+            await self._save_keystore()
+        except Exception as e:
+            raise KeyStoreError(f"Failed to store key {key_id}: {e}")
+
     async def store_key(self, key_id: str, key_data: bytes, encrypted: bool = True) -> None:
         """Store a key securely.
 
@@ -116,21 +139,26 @@ class KeyStore:
 
         async with self._lock:
             await self._ensure_initialized()
+            await self._store_key_unlocked(key_id, key_data, encrypted)
 
-            try:
-                encoded_data = base64.b64encode(key_data).decode("ascii")
+    def _get_key_unlocked(self, key_id: str) -> Optional[bytes]:
+        """Load a key from storage (internal, no lock).
 
-                import time
+        Args:
+            key_id: Unique identifier for the key
 
-                self._keys[key_id] = {
-                    "data": encoded_data,
-                    "encrypted": encrypted,
-                    "created_at": time.time(),
-                }
+        Returns:
+            Key data if found, None otherwise
+        """
+        if key_id not in self._keys:
+            return None
 
-                await self._save_keystore()
-            except Exception as e:
-                raise KeyStoreError(f"Failed to store key {key_id}: {e}")
+        try:
+            key_info = self._keys[key_id]
+            encoded_data = key_info["data"]
+            return base64.b64decode(encoded_data.encode("ascii"))
+        except Exception as e:
+            raise KeyStoreError(f"Failed to load key {key_id}: {e}")
 
     async def get_key(self, key_id: str) -> Optional[bytes]:
         """Load a key from storage.
@@ -146,16 +174,7 @@ class KeyStore:
 
         async with self._lock:
             await self._ensure_initialized()
-
-            if key_id not in self._keys:
-                return None
-
-            try:
-                key_info = self._keys[key_id]
-                encoded_data = key_info["data"]
-                return base64.b64decode(encoded_data.encode("ascii"))
-            except Exception as e:
-                raise KeyStoreError(f"Failed to load key {key_id}: {e}")
+            return self._get_key_unlocked(key_id)
 
     async def delete_key(self, key_id: str) -> bool:
         """Securely delete a key.
@@ -200,11 +219,11 @@ class KeyStore:
                 raise KeyStoreError(f"Key {key_id} not found for rotation")
 
             try:
-                old_key_data = await self.get_key(key_id)
+                old_key_data = self._get_key_unlocked(key_id)
                 if old_key_data is None:
                     raise KeyStoreError(f"Failed to load existing key {key_id}")
 
-                await self.store_key(key_id, new_key_data)
+                await self._store_key_unlocked(key_id, new_key_data)
 
                 return old_key_data
             except Exception as e:
