@@ -58,14 +58,7 @@ jobs:
       run: poetry run interrogate beenet/ --fail-under=90
     
     - name: Run tests with coverage
-      run: poetry run pytest tests/ --cov=beenet --cov-report=xml --cov-report=term-missing
-    
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage.xml
-        fail_ci_if_error: true
-        token: ${{ secrets.CODECOV_TOKEN }}
+      run: poetry run pytest tests/ --cov=beenet --cov-report=term-missing
     
     - name: Build docs
       run: |
