@@ -1,5 +1,7 @@
 """Fuzz tests for Noise payload decoder."""
 
+import asyncio
+
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -13,17 +15,15 @@ class TestNoiseDecoderFuzz:
 
     @given(st.binary(min_size=0, max_size=1024))
     @settings(max_examples=200, deadline=1000)
-    def test_decrypt_random_payloads(self, payload_data):
+    @pytest.mark.asyncio
+    async def test_decrypt_random_payloads(self, payload_data):
         """Test decrypting random payload data."""
         noise_channel = NoiseChannel(is_initiator=True)
 
         try:
             if hasattr(noise_channel, "decrypt"):
-                result = noise_channel.decrypt(payload_data)
-                if hasattr(result, "__await__"):
-                    pass  # Skip async methods in sync fuzz tests
-                else:
-                    assert result is None or isinstance(result, bytes)
+                result = await noise_channel.decrypt(payload_data)
+                assert result is None or isinstance(result, bytes)
         except (CryptoError, ValueError):
             pass
         except Exception as e:
@@ -31,17 +31,15 @@ class TestNoiseDecoderFuzz:
 
     @given(st.binary(min_size=1, max_size=16))
     @settings(max_examples=100)
-    def test_decrypt_short_payloads(self, payload_data):
+    @pytest.mark.asyncio
+    async def test_decrypt_short_payloads(self, payload_data):
         """Test decrypting very short payloads."""
         noise_channel = NoiseChannel(is_initiator=False)
 
         try:
             if hasattr(noise_channel, "decrypt"):
-                result = noise_channel.decrypt(payload_data)
-                if hasattr(result, "__await__"):
-                    pass  # Skip async methods in sync fuzz tests
-                else:
-                    assert result is None or isinstance(result, bytes)
+                result = await noise_channel.decrypt(payload_data)
+                assert result is None or isinstance(result, bytes)
         except (CryptoError, ValueError, IndexError):
             pass
         except Exception as e:
@@ -49,17 +47,15 @@ class TestNoiseDecoderFuzz:
 
     @given(st.binary(min_size=1000, max_size=2048))
     @settings(max_examples=50)
-    def test_decrypt_large_payloads(self, payload_data):
+    @pytest.mark.asyncio
+    async def test_decrypt_large_payloads(self, payload_data):
         """Test decrypting large payloads."""
         noise_channel = NoiseChannel(is_initiator=True)
 
         try:
             if hasattr(noise_channel, "decrypt"):
-                result = noise_channel.decrypt(payload_data)
-                if hasattr(result, "__await__"):
-                    pass  # Skip async methods in sync fuzz tests
-                else:
-                    assert result is None or isinstance(result, bytes)
+                result = await noise_channel.decrypt(payload_data)
+                assert result is None or isinstance(result, bytes)
         except (CryptoError, ValueError):
             pass
         except Exception as e:
@@ -67,17 +63,15 @@ class TestNoiseDecoderFuzz:
 
     @given(st.binary(min_size=1, max_size=512))
     @settings(max_examples=100)
-    def test_handshake_message_processing(self, message_data):
+    @pytest.mark.asyncio
+    async def test_handshake_message_processing(self, message_data):
         """Test processing random handshake messages."""
         noise_channel = NoiseChannel(is_initiator=True)
 
         try:
             if hasattr(noise_channel, "process_handshake_message"):
-                result = noise_channel.process_handshake_message(message_data)
-                if hasattr(result, "__await__"):
-                    pass  # Skip async methods in sync fuzz tests
-                else:
-                    assert result is None or isinstance(result, bytes)
+                result = await noise_channel.process_handshake_message(message_data)
+                assert result is None or isinstance(result, bytes)
         except (CryptoError, ValueError):
             pass
         except Exception as e:
@@ -85,17 +79,15 @@ class TestNoiseDecoderFuzz:
 
     @given(st.binary(min_size=0, max_size=64))
     @settings(max_examples=100)
-    def test_malformed_noise_headers(self, header_data):
+    @pytest.mark.asyncio
+    async def test_malformed_noise_headers(self, header_data):
         """Test processing malformed Noise headers."""
         noise_channel = NoiseChannel(is_initiator=False)
 
         try:
             if hasattr(noise_channel, "decrypt"):
-                result = noise_channel.decrypt(header_data)
-                if hasattr(result, "__await__"):
-                    pass  # Skip async methods in sync fuzz tests
-                else:
-                    assert result is None or isinstance(result, bytes)
+                result = await noise_channel.decrypt(header_data)
+                assert result is None or isinstance(result, bytes)
         except (CryptoError, ValueError, IndexError):
             pass
         except Exception as e:
@@ -134,15 +126,14 @@ class TestNoiseDecoderFuzz:
 
     @given(st.binary(min_size=0, max_size=128))
     @settings(max_examples=50)
-    def test_rekey_with_random_data(self, rekey_data):
+    @pytest.mark.asyncio
+    async def test_rekey_with_random_data(self, rekey_data):
         """Test rekeying with random data."""
         noise_channel = NoiseChannel(is_initiator=False)
 
         try:
             if hasattr(noise_channel, "rekey"):
-                result = noise_channel.rekey()
-                if hasattr(result, "__await__"):
-                    pass  # Skip async methods in sync fuzz tests
+                await noise_channel.rekey()
         except (CryptoError, ValueError, AttributeError):
             pass
         except Exception as e:
