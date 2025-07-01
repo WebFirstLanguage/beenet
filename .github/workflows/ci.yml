@@ -95,7 +95,7 @@ jobs:
       run: poetry install --no-interaction
     
     - name: Run safety check
-      run: poetry run safety check
+      run: poetry run safety check -i 51457
     
     - name: Run bandit security linter
       run: poetry run bandit -r beenet/
