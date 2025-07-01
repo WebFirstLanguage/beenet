@@ -66,14 +66,21 @@ class BeeQuietDiscovery:
     """
 
     MULTICAST_ADDR = "239.255.7.7"
+    MULTICAST_GROUP = "239.255.7.7"  # Alias for tests
     MULTICAST_PORT = 7777
     MAGIC_NUMBER = 0xBEEC
     HEARTBEAT_INTERVAL = 30.0
     PEER_TIMEOUT = 90.0
+    
+    WHO_IS_HERE = BeeQuietMessageType.WHO_IS_HERE
+    I_AM_HERE = BeeQuietMessageType.I_AM_HERE
+    HEARTBEAT = BeeQuietMessageType.HEARTBEAT
+    GOODBYE = BeeQuietMessageType.GOODBYE
 
     def __init__(self, peer_id: str, on_peer_discovered: Optional[Callable] = None):
         self.peer_id = peer_id
         self.on_peer_discovered = on_peer_discovered
+        self.peer_discovered_callback = on_peer_discovered  # Alias for tests
         self.state = BeeQuietState.DISCOVERING
         self._transport: Optional[asyncio.DatagramTransport] = None
         self._session_keys: Dict[str, bytes] = {}
@@ -127,7 +134,7 @@ class BeeQuietDiscovery:
             self.state = BeeQuietState.LEAVING
 
             for peer_addr in list(self._discovered_peers.keys()):
-                await self.send_goodbye(peer_addr)
+                await self._send_goodbye_to_peer(peer_addr)
 
             if self._heartbeat_task:
                 self._heartbeat_task.cancel()
@@ -211,65 +218,91 @@ class BeeQuietDiscovery:
         except Exception as e:
             raise DiscoveryError(f"Failed to send I_AM_HERE: {e}")
 
-    async def send_heartbeat(self, target_addr: str) -> None:
+    async def send_heartbeat(self, peer_id: str, session_key: bytes, peer_address: tuple) -> None:
         """Send AEAD-wrapped HEARTBEAT message.
 
         Args:
-            target_addr: Address to send heartbeat to
+            peer_id: Target peer ID
+            session_key: Session key for encryption
+            peer_address: Target peer address tuple (host, port)
         """
         if not self._transport:
             raise DiscoveryError("Transport not available")
 
+        try:
+            message_data = {"peer_id": self.peer_id, "timestamp": int(time.time())}
+
+            payload = json.dumps(message_data).encode("utf-8")
+            encrypted_payload = self._encrypt_payload(payload, session_key)
+
+            packet = self._create_packet(BeeQuietMessageType.HEARTBEAT, encrypted_payload)
+            self._transport.sendto(packet, peer_address)
+
+            logger.debug(f"Sent HEARTBEAT to {peer_id} at {peer_address}")
+
+        except Exception as e:
+            logger.warning(f"Failed to send heartbeat to {peer_id}: {e}")
+            
+    async def _send_heartbeat_to_peer(self, target_addr: str) -> None:
+        """Internal method to send heartbeat to discovered peer.
+
+        Args:
+            target_addr: Target peer address string
+        """
         if target_addr not in self._session_keys:
             logger.warning(f"No session key for {target_addr}, skipping heartbeat")
             return
 
         try:
-            message_data = {"peer_id": self.peer_id, "timestamp": int(time.time())}
-
-            payload = json.dumps(message_data).encode("utf-8")
             session_key = self._session_keys[target_addr]
-            encrypted_payload = self._encrypt_payload(payload, session_key)
-
-            packet = self._create_packet(BeeQuietMessageType.HEARTBEAT, encrypted_payload)
-
             host, port = (
                 target_addr.split(":") if ":" in target_addr else (target_addr, self.MULTICAST_PORT)
             )
-            self._transport.sendto(packet, (host, int(port)))
-
-            logger.debug(f"Sent HEARTBEAT to {target_addr}")
+            await self.send_heartbeat("unknown", session_key, (host, int(port)))
 
         except Exception as e:
             logger.warning(f"Failed to send heartbeat to {target_addr}: {e}")
 
-    async def send_goodbye(self, target_addr: str) -> None:
+    async def send_goodbye(self, peer_id: str, session_key: bytes, peer_address: tuple) -> None:
         """Send AEAD-wrapped GOODBYE message.
 
         Args:
-            target_addr: Address to send goodbye to
+            peer_id: Target peer ID
+            session_key: Session key for encryption
+            peer_address: Target peer address tuple (host, port)
         """
         if not self._transport:
-            return
-
-        if target_addr not in self._session_keys:
             return
 
         try:
             message_data = {"peer_id": self.peer_id, "timestamp": int(time.time())}
 
             payload = json.dumps(message_data).encode("utf-8")
-            session_key = self._session_keys[target_addr]
             encrypted_payload = self._encrypt_payload(payload, session_key)
 
             packet = self._create_packet(BeeQuietMessageType.GOODBYE, encrypted_payload)
+            self._transport.sendto(packet, peer_address)
 
+            logger.debug(f"Sent GOODBYE to {peer_id} at {peer_address}")
+
+        except Exception as e:
+            logger.warning(f"Failed to send goodbye to {peer_id}: {e}")
+            
+    async def _send_goodbye_to_peer(self, target_addr: str) -> None:
+        """Internal method to send goodbye to discovered peer.
+
+        Args:
+            target_addr: Target peer address string
+        """
+        if target_addr not in self._session_keys:
+            return
+
+        try:
+            session_key = self._session_keys[target_addr]
             host, port = (
                 target_addr.split(":") if ":" in target_addr else (target_addr, self.MULTICAST_PORT)
             )
-            self._transport.sendto(packet, (host, int(port)))
-
-            logger.debug(f"Sent GOODBYE to {target_addr}")
+            await self.send_goodbye("unknown", session_key, (host, int(port)))
 
         except Exception as e:
             logger.warning(f"Failed to send goodbye to {target_addr}: {e}")
@@ -286,7 +319,7 @@ class BeeQuietDiscovery:
         """
         try:
             hkdf = HKDF(
-                algorithm=hashes.BLAKE2b(32),
+                algorithm=hashes.BLAKE2b(64),
                 length=32,
                 salt=nonce,
                 info=b"beenet-beequiet-session-key",
@@ -507,7 +540,7 @@ class BeeQuietDiscovery:
                 await asyncio.sleep(self.HEARTBEAT_INTERVAL)
 
                 for peer_addr in list(self._discovered_peers.keys()):
-                    await self.send_heartbeat(peer_addr)
+                    await self._send_heartbeat_to_peer(peer_addr)
 
             except asyncio.CancelledError:
                 break
@@ -546,6 +579,51 @@ class BeeQuietDiscovery:
         """
         return list(self._discovered_peers.values())
     
+    def derive_session_key(self, nonce: bytes, response: bytes) -> bytes:
+        """Public method to derive session key for tests.
+        
+        Args:
+            nonce: Challenge nonce
+            response: Response data
+            
+        Returns:
+            Derived session key
+        """
+        return self._derive_session_key(nonce, response)
+    
+    def encrypt_message(self, message: bytes, session_key: bytes) -> bytes:
+        """Public method to encrypt message for tests.
+        
+        Args:
+            message: Message to encrypt
+            session_key: Session key for encryption
+            
+        Returns:
+            Encrypted message
+        """
+        return self._encrypt_payload(message, session_key)
+    
+    def decrypt_message(self, encrypted_message: bytes, session_key: bytes) -> bytes:
+        """Public method to decrypt message for tests.
+        
+        Args:
+            encrypted_message: Encrypted message
+            session_key: Session key for decryption
+            
+        Returns:
+            Decrypted message
+        """
+        return self._decrypt_payload(encrypted_message, session_key)
+    
+    async def _on_peer_discovered(self, peer_info: dict) -> None:
+        """Internal callback for peer discovery (for tests).
+        
+        Args:
+            peer_info: Discovered peer information
+        """
+        if self.on_peer_discovered:
+            await self.on_peer_discovered(peer_info)
+
     @property
     def is_running(self) -> bool:
         """Check if BeeQuiet discovery is running."""

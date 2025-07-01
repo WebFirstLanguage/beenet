@@ -138,7 +138,7 @@ class KademliaDiscovery:
 
         try:
             target_node = Node(target_id.encode("utf-8"))
-            nearest_nodes = self._dht.protocol.router.findNeighbors(target_node, count)
+            nearest_nodes = self._dht.protocol.router.find_neighbors(target_node, count)
 
             peers = []
             for node in nearest_nodes:
