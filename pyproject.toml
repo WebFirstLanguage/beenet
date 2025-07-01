@@ -147,6 +147,11 @@ whitelist-regex = []
 color = true
 omit-covered-files = false
 
+[tool.safety]
+ignore = [
+    "51457",  # CVE-2022-42969: Disputed ReDoS in py package (transitive from interrogate)
+]
+
 [tool.flake8]
 max-line-length = 100
 extend-ignore = ["E203", "W503"]
