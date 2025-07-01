@@ -169,7 +169,7 @@ class MerkleTree:
         """
         try:
             if not isinstance(chunk_data, bytes):
-                return False
+                return False  # type: ignore[unreachable]
 
             if chunk_index != proof.chunk_index:
                 return False

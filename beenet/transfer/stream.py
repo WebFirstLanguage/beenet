@@ -148,7 +148,7 @@ class TransferStream:
             return True
 
         if not isinstance(chunk_data, bytes):
-            return False
+            return False  # type: ignore[unreachable]
 
         if not self.state.merkle_root:
             return False
