@@ -18,7 +18,10 @@ class TestBeeQuietParserFuzz:
     def test_parse_random_packets(self, packet_data):
         """Test parsing random packet data."""
         peer_id = "fuzz_peer"
-        callback = lambda x: None
+
+        def callback(x):
+            pass
+
         discovery = BeeQuietDiscovery(peer_id, callback)
 
         try:
@@ -33,7 +36,10 @@ class TestBeeQuietParserFuzz:
     def test_parse_short_packets(self, packet_data):
         """Test parsing very short packets."""
         peer_id = "fuzz_peer"
-        callback = lambda x: None
+
+        def callback(x):
+            pass
+
         discovery = BeeQuietDiscovery(peer_id, callback)
 
         try:
@@ -48,7 +54,10 @@ class TestBeeQuietParserFuzz:
     def test_parse_large_packets(self, packet_data):
         """Test parsing large packets."""
         peer_id = "fuzz_peer"
-        callback = lambda x: None
+
+        def callback(x):
+            pass
+
         discovery = BeeQuietDiscovery(peer_id, callback)
 
         try:
@@ -65,7 +74,10 @@ class TestBeeQuietParserFuzz:
         import struct
 
         peer_id = "fuzz_peer"
-        callback = lambda x: None
+
+        def callback(x):
+            pass
+
         discovery = BeeQuietDiscovery(peer_id, callback)
 
         packet_data = struct.pack(">I", magic_number) + b"random_data"
@@ -82,7 +94,10 @@ class TestBeeQuietParserFuzz:
     def test_parse_malformed_headers(self, header_data):
         """Test parsing packets with malformed headers."""
         peer_id = "fuzz_peer"
-        callback = lambda x: None
+
+        def callback(x):
+            pass
+
         discovery = BeeQuietDiscovery(peer_id, callback)
 
         try:
@@ -97,7 +112,10 @@ class TestBeeQuietParserFuzz:
     def test_decrypt_random_data(self, encrypted_data):
         """Test decrypting random data."""
         peer_id = "fuzz_peer"
-        callback = lambda x: None
+
+        def callback(x):
+            pass
+
         discovery = BeeQuietDiscovery(peer_id, callback)
 
         session_key = b"session_key_32_bytes_exactly!!!"
@@ -113,7 +131,10 @@ class TestBeeQuietParserFuzz:
     def test_session_key_derivation_fuzz(self, key_material):
         """Test session key derivation with random key material."""
         peer_id = "fuzz_peer"
-        callback = lambda x: None
+
+        def callback(x):
+            pass
+
         discovery = BeeQuietDiscovery(peer_id, callback)
 
         nonce = key_material[:16]

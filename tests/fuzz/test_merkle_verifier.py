@@ -88,7 +88,6 @@ class TestMerkleVerifierFuzz:
         """Test chunk verification with random data."""
         chunk_hash = MerkleTree.hash_chunk(chunk_data)
         proof_hashes = [b"\x02" * 32, b"\x03" * 32]
-        root_hash = b"\x00" * 32
 
         tree = MerkleTree([chunk_hash])
         proof = MerkleProof(chunk_index, chunk_hash, proof_hashes)
@@ -118,6 +117,7 @@ class TestMerkleVerifierFuzz:
                 root_hash = tree.build_tree()
                 assert isinstance(root_hash, bytes)
                 assert len(root_hash) == 32
+                _ = root_hash
             except Exception as e:
                 pytest.fail(f"Unexpected exception building tree: {e}")
 

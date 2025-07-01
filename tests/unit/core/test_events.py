@@ -1,11 +1,10 @@
 """Unit tests for EventBus functionality."""
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from beenet.core.events import Event, EventBus, EventType
+from beenet.core.events import Event, EventType
 
 
 class TestEvent:

@@ -40,8 +40,8 @@ class TestPeerIntegration:
 
         await asyncio.sleep(2)  # Allow discovery to work
 
-        peers1 = await peer1.list_peers()
-        peers2 = await peer2.list_peers()
+        await peer1.list_peers()
+        await peer2.list_peers()
 
         await peer1.stop()
         await peer2.stop()
@@ -54,7 +54,7 @@ class TestPeerIntegration:
         await peer1.start(8504)
         await peer2.start(8505)
 
-        success = await peer1.connect_to_peer(peer2.peer_id, "127.0.0.1:8505")
+        await peer1.connect_to_peer(peer2.peer_id, "127.0.0.1:8505")
 
         await peer1.stop()
         await peer2.stop()
@@ -74,7 +74,7 @@ class TestPeerIntegration:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             receive_path = Path(tmpdir) / "received_file.txt"
-            success = await peer2.receive_file(transfer_id, receive_path)
+            await peer2.receive_file(transfer_id, receive_path)
 
         await peer1.stop()
         await peer2.stop()
@@ -152,7 +152,7 @@ class TestPeerIntegration:
                 if transfer_id in peer2._transfers:
                     await peer2._transfers[transfer_id].resume_transfer(state_path)
 
-                    success = await peer2.receive_file(transfer_id, receive_path)
+                    await peer2.receive_file(transfer_id, receive_path)
 
         await peer1.stop()
         await peer2.stop()
@@ -167,7 +167,7 @@ class TestPeerIntegration:
 
         await peer1.connect_to_peer(peer2.peer_id, "127.0.0.1:8513")
 
-        transfer_id = await peer1.send_file(peer2.peer_id, test_file)
+        await peer1.send_file(peer2.peer_id, test_file)
 
         await asyncio.sleep(0.1)  # Let transfer start
 
@@ -195,7 +195,7 @@ class TestPeerIntegration:
             task = asyncio.create_task(peer1.send_file(peer2.peer_id, test_file))
             transfer_tasks.append(task)
 
-        transfer_ids = await asyncio.gather(*transfer_tasks, return_exceptions=True)
+        await asyncio.gather(*transfer_tasks, return_exceptions=True)
 
         await peer1.stop()
         await peer2.stop()
@@ -208,14 +208,14 @@ class TestPeerIntegration:
         await peer1.start(8516)
         await peer2.start(8517)
 
-        success1 = await peer1.connect_to_peer(peer2.peer_id, "127.0.0.1:8517")
+        await peer1.connect_to_peer(peer2.peer_id, "127.0.0.1:8517")
 
         await peer2.stop()
         await asyncio.sleep(0.5)
 
         await peer2.start(8517)
 
-        success2 = await peer1.connect_to_peer(peer2.peer_id, "127.0.0.1:8517")
+        await peer1.connect_to_peer(peer2.peer_id, "127.0.0.1:8517")
 
         await peer1.stop()
         await peer2.stop()
@@ -248,8 +248,8 @@ class TestPeerIntegration:
 
         await asyncio.sleep(3)  # Allow BeeQuiet discovery to work
 
-        discovered_peers1 = peer1.beequiet.get_discovered_peers()
-        discovered_peers2 = peer2.beequiet.get_discovered_peers()
+        peer1.beequiet.get_discovered_peers()
+        peer2.beequiet.get_discovered_peers()
 
         await peer1.stop()
         await peer2.stop()
@@ -265,7 +265,7 @@ class TestPeerIntegration:
         await peer1.connect_to_peer(peer2.peer_id, "127.0.0.1:8522")
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            receive_path = Path(tmpdir) / "cancelled_file.bin"
+            Path(tmpdir) / "cancelled_file.bin"
             state_path = Path(tmpdir) / "transfer_state.json"
 
             async def transfer_with_cancellation():
@@ -385,7 +385,7 @@ class TestPeerIntegration:
 
             if state_path.exists() and transfer_id in peer2._transfers:
                 await peer2._transfers[transfer_id].resume_transfer(state_path)
-                success = await peer2.receive_file(transfer_id, receive_path)
+                await peer2.receive_file(transfer_id, receive_path)
 
             await peer1.stop()
             await peer2.stop()

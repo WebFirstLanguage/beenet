@@ -1,12 +1,11 @@
 """Unit tests for TransferStream functionality."""
 
-import tempfile
 from pathlib import Path
 
 import pytest
 
 from beenet.core.errors import TransferError
-from beenet.transfer import MerkleTree, TransferStream
+from beenet.transfer import TransferStream
 
 
 class TestTransferStream:

@@ -113,7 +113,7 @@ class TestMerkleTreeProperties:
         """Test that corrupted proofs are detected."""
         chunk_hashes = [MerkleTree.hash_chunk(chunk) for chunk in chunks]
         tree = MerkleTree(chunk_hashes)
-        root_hash = tree.build_tree()
+        tree.build_tree()
 
         for i in range(len(chunks)):
             proof = tree.generate_proof(i)

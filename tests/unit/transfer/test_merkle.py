@@ -108,7 +108,7 @@ class TestMerkleTree:
         chunk_hashes = [MerkleTree.hash_chunk(chunk) for chunk in chunks]
 
         tree = MerkleTree(chunk_hashes)
-        root_hash = tree.build_tree()
+        tree.build_tree()
 
         proof = tree.generate_proof(0)
 

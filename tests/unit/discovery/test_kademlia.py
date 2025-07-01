@@ -1,7 +1,5 @@
 """Unit tests for Kademlia discovery functionality."""
 
-from unittest.mock import AsyncMock, MagicMock
-
 import pytest
 
 from beenet.core.errors import DiscoveryError

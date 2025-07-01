@@ -15,7 +15,10 @@ class TestAEADPayloadFuzz:
     def test_encrypt_decrypt_random_payloads(self, payload, session_key):
         """Test AEAD encryption/decryption with random payloads."""
         peer_id = "fuzz_peer"
-        callback = lambda x: None
+
+        def callback(x):
+            pass
+
         discovery = BeeQuietDiscovery(peer_id, callback)
 
         try:
@@ -34,7 +37,10 @@ class TestAEADPayloadFuzz:
     def test_decrypt_short_ciphertexts(self, ciphertext):
         """Test decrypting very short ciphertexts."""
         peer_id = "fuzz_peer"
-        callback = lambda x: None
+
+        def callback(x):
+            pass
+
         discovery = BeeQuietDiscovery(peer_id, callback)
         session_key = b"session_key_32_bytes_exactly!!!"
 
@@ -49,7 +55,10 @@ class TestAEADPayloadFuzz:
     def test_decrypt_large_ciphertexts(self, ciphertext):
         """Test decrypting large ciphertexts."""
         peer_id = "fuzz_peer"
-        callback = lambda x: None
+
+        def callback(x):
+            pass
+
         discovery = BeeQuietDiscovery(peer_id, callback)
         session_key = b"session_key_32_bytes_exactly!!!"
 
@@ -64,7 +73,10 @@ class TestAEADPayloadFuzz:
     def test_decrypt_with_invalid_keys(self, invalid_key):
         """Test decryption with invalid keys."""
         peer_id = "fuzz_peer"
-        callback = lambda x: None
+
+        def callback(x):
+            pass
+
         discovery = BeeQuietDiscovery(peer_id, callback)
 
         valid_payload = b"test message"
@@ -84,7 +96,10 @@ class TestAEADPayloadFuzz:
     def test_malformed_aead_packets(self, malformed_packet):
         """Test processing malformed AEAD packets."""
         peer_id = "fuzz_peer"
-        callback = lambda x: None
+
+        def callback(x):
+            pass
+
         discovery = BeeQuietDiscovery(peer_id, callback)
         session_key = b"session_key_32_bytes_exactly!!!"
 
@@ -99,7 +114,10 @@ class TestAEADPayloadFuzz:
     def test_session_key_derivation_fuzz(self, nonce, response):
         """Test session key derivation with random inputs."""
         peer_id = "fuzz_peer"
-        callback = lambda x: None
+
+        def callback(x):
+            pass
+
         discovery = BeeQuietDiscovery(peer_id, callback)
 
         try:
@@ -117,7 +135,10 @@ class TestAEADPayloadFuzz:
     def test_encrypt_empty_and_large_messages(self, message):
         """Test encrypting messages of various sizes."""
         peer_id = "fuzz_peer"
-        callback = lambda x: None
+
+        def callback(x):
+            pass
+
         discovery = BeeQuietDiscovery(peer_id, callback)
         session_key = b"session_key_32_bytes_exactly!!!"
 
@@ -136,7 +157,10 @@ class TestAEADPayloadFuzz:
     def test_key_rotation_scenarios(self, new_key):
         """Test key rotation with random keys."""
         peer_id = "fuzz_peer"
-        callback = lambda x: None
+
+        def callback(x):
+            pass
+
         discovery = BeeQuietDiscovery(peer_id, callback)
 
         old_key = b"old_session_key_32_bytes_exactly!"
