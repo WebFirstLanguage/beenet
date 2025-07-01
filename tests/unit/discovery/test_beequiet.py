@@ -126,8 +126,8 @@ class TestBeeQuietDiscovery:
     @pytest.mark.asyncio
     async def test_invalid_decryption(self, beequiet_discovery):
         """Test decryption with wrong key."""
-        session_key1 = b"session_key1_32_bytes_exactly!!"
-        session_key2 = b"session_key2_32_bytes_exactly!!"
+        session_key1 = b"session_key1_32_bytes_exactly!!!"
+        session_key2 = b"session_key2_32_bytes_exactly!!!"
         message = b"test message data"
 
         encrypted = beequiet_discovery.encrypt_message(message, session_key1)
