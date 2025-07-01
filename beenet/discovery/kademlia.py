@@ -35,6 +35,9 @@ class KademliaDiscovery:
             listen_port: Port to listen on for DHT traffic
         """
         try:
+            if self._running:
+                await self.stop()
+                
             self._listen_port = listen_port
             self._dht = Server()
 
@@ -64,7 +67,9 @@ class KademliaDiscovery:
             try:
                 self._dht.stop()
                 self._running = False
+                self._dht = None  # Clear reference to allow port reuse
                 logger.info("Kademlia DHT stopped")
+                await asyncio.sleep(0.1)
             except Exception as e:
                 raise DiscoveryError(f"Failed to stop Kademlia DHT: {e}")
 

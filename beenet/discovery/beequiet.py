@@ -318,9 +318,14 @@ class BeeQuietDiscovery:
             Derived session key
         """
         try:
+            if isinstance(nonce, str):
+                nonce = nonce.encode('utf-8')
+            if isinstance(response, str):
+                response = response.encode('utf-8')
+                
             hkdf = HKDF(
                 algorithm=hashes.BLAKE2b(64),
-                length=32,
+                length=32,  # ChaCha20Poly1305 requires exactly 32 bytes
                 salt=nonce,
                 info=b"beenet-beequiet-session-key",
             )
