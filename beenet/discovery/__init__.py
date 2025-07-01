@@ -8,6 +8,6 @@ This module provides:
 
 from .beequiet import BeeQuietDiscovery
 from .kademlia import KademliaDiscovery
-from .nat_traversal import NATTraversal
+from .nat_traversal import ExternalAddress, NATConfig, NATTraversal
 
-__all__ = ["KademliaDiscovery", "BeeQuietDiscovery", "NATTraversal"]
+__all__ = ["KademliaDiscovery", "BeeQuietDiscovery", "NATTraversal", "NATConfig", "ExternalAddress"]

@@ -31,11 +31,17 @@ pynacl = "^1.5.0"
 kademlia = "^2.2.2"
 cryptography = "^44.0.1"
 asyncio-dgram = "^2.1.2"
+pystun3 = "^1.0.0"
+aioice = "^0.9.0"
+reedsolo = "^1.7.0"
+structlog = "^24.1.0"
+prometheus-client = "^0.19.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.0.0"
 pytest-cov = "^4.0.0"
 pytest-asyncio = "^0.21.0"
+pytest-mypy = "^0.10.3"
 hypothesis = "^6.0.0"
 black = "^24.3.0"
 isort = "^5.12.0"
@@ -103,6 +109,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
     "fuzz: marks tests as fuzz tests",
+    "mypy: marks tests that check type annotations with mypy",
 ]
 
 [tool.coverage.run]

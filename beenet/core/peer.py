@@ -2,14 +2,17 @@
 
 import asyncio
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 from ..crypto import Identity, KeyManager, KeyStore
-from ..discovery import BeeQuietDiscovery, KademliaDiscovery, NATTraversal
+from ..discovery import BeeQuietDiscovery, KademliaDiscovery, NATConfig, NATTraversal
 from ..transfer import TransferStream
 from .connection import ConnectionManager
 from .events import EventBus, EventType
+from .resilience import PeerResilienceManager, ReconnectionPolicy, ReconnectionReason
+from ..observability import get_logger, get_metrics, MetricsConfig, setup_observability
 
 
 class Peer:
@@ -22,8 +25,20 @@ class Peer:
     - Event-driven architecture for extensibility
     """
 
-    def __init__(self, peer_id: str, keystore_path: Optional[Path] = None):
+    def __init__(
+        self,
+        peer_id: str,
+        keystore_path: Optional[Path] = None,
+        nat_config: Optional[NATConfig] = None,
+        reconnection_policy: Optional[ReconnectionPolicy] = None,
+        metrics_config: Optional[MetricsConfig] = None,
+    ):
         self.peer_id = peer_id
+
+        # Set up observability first
+        self.observability = setup_observability(metrics_config)
+        self.logger = get_logger("peer")
+        self.metrics = get_metrics()
 
         self.keystore = KeyStore(keystore_path)
         self.identity = Identity(self.keystore)
@@ -33,12 +48,21 @@ class Peer:
 
         self.kademlia = KademliaDiscovery()
         self.beequiet = BeeQuietDiscovery(peer_id, None)
-        self.nat_traversal = NATTraversal()
+        self.nat_traversal = NATTraversal(nat_config)
+        self.resilience_manager = PeerResilienceManager(reconnection_policy)
 
         self._running = False
         self._transfers: Dict[str, TransferStream] = {}
         self._state_dir = Path(tempfile.gettempdir()) / "beenet" / peer_id
         self._state_dir.mkdir(parents=True, exist_ok=True)
+
+        # Set up resilience callbacks
+        self._setup_resilience_callbacks()
+
+        # Start metrics server
+        self.observability.start_metrics_server()
+
+        self.logger.info("Peer initialized", peer_id=peer_id)
 
     async def start(
         self, listen_port: int = 0, bootstrap_nodes: Optional[list[str]] = None
@@ -52,28 +76,65 @@ class Peer:
         if self._running:
             return
 
+        start_time = time.time()
+        self.logger.info("Starting peer", listen_port=listen_port, bootstrap_nodes=bootstrap_nodes)
+
         try:
-            await self.keystore.open()
-            await self.identity.load_or_generate_identity(self.peer_id)
-            await self.key_manager.load_or_generate_static_key(self.peer_id)
+            with self.observability.time_operation("peer_startup", self.peer_id):
+                await self.keystore.open()
+                await self.identity.load_or_generate_identity(self.peer_id)
+                await self.key_manager.load_or_generate_static_key(self.peer_id)
 
-            await self.connection_manager.start(listen_port)
-            actual_port = self.connection_manager.listen_port
-            if actual_port is None:
-                raise RuntimeError("Failed to get listen port from connection manager")
+                await self.connection_manager.start(listen_port)
+                actual_port = self.connection_manager.listen_port
+                if actual_port is None:
+                    raise RuntimeError("Failed to get listen port from connection manager")
 
-            if bootstrap_nodes:
-                self.kademlia.bootstrap_nodes = bootstrap_nodes
-            await self.kademlia.start(actual_port + 1)
+                if bootstrap_nodes:
+                    self.kademlia.bootstrap_nodes = bootstrap_nodes
+                await self.kademlia.start(actual_port + 1)
 
-            await self.beequiet.start()
+                await self.beequiet.start()
 
-            await self.kademlia.register_peer(self.peer_id, "127.0.0.1", actual_port)
+                # Perform NAT traversal discovery if enabled
+                if self.nat_traversal.is_nat_traversal_enabled():
+                    with self.observability.time_operation("nat_discovery", self.peer_id):
+                        external_addr = await self.nat_traversal.discover_external_address()
+                        if external_addr:
+                            # Register external address with Kademlia
+                            await self.kademlia.register_peer(
+                                self.peer_id, external_addr.host, external_addr.port
+                            )
+                            self.metrics.record_nat_traversal("stun", True)
+                            self.logger.info(
+                                "NAT traversal successful",
+                                external_address=f"{external_addr.host}:{external_addr.port}",
+                            )
+                        else:
+                            # Fallback to local address
+                            await self.kademlia.register_peer(
+                                self.peer_id, "127.0.0.1", actual_port
+                            )
+                            self.metrics.record_nat_traversal("stun", False)
+                            self.logger.warning("NAT traversal failed, using local address")
+                else:
+                    await self.kademlia.register_peer(self.peer_id, "127.0.0.1", actual_port)
 
-            self._running = True
-            await self.event_bus.emit(
-                EventType.PEER_CONNECTED, {"peer_id": self.peer_id, "listen_port": actual_port}
-            )
+                # Start resilience manager
+                await self.resilience_manager.start()
+
+                self._running = True
+                startup_duration = time.time() - start_time
+
+                self.logger.info(
+                    "Peer started successfully",
+                    actual_port=actual_port,
+                    startup_duration=startup_duration,
+                )
+
+                await self.event_bus.emit(
+                    EventType.PEER_CONNECTED, {"peer_id": self.peer_id, "listen_port": actual_port}
+                )
 
         except Exception as e:
             await self.stop()
@@ -92,6 +153,8 @@ class Peer:
             await self.beequiet.stop()
             await self.kademlia.stop()
             await self.connection_manager.stop()
+            await self.nat_traversal.cleanup()
+            await self.resilience_manager.stop()
 
             self._transfers.clear()
             self._running = False
@@ -301,4 +364,60 @@ class Peer:
             "public_key": self.public_key,
             "is_running": self.is_running,
             "active_transfers": len(self._transfers),
+            "resilience_stats": self.resilience_manager.get_statistics() if self._running else {},
         }
+
+    def _setup_resilience_callbacks(self) -> None:
+        """Set up callbacks for resilience manager integration."""
+
+        def should_reconnect_callback(peer_id: str, score, reason) -> bool:
+            """Custom policy for reconnection decisions."""
+            # Don't reconnect to ourselves
+            if peer_id == self.peer_id:
+                return False
+
+            # Always allow initial connections
+            if reason == ReconnectionReason.INITIAL_CONNECTION:
+                return True
+
+            # Use default scoring for other cases
+            return (
+                score.calculate_overall_score()
+                >= self.resilience_manager.policy.min_score_for_retry
+            )
+
+        def score_update_callback(peer_id: str, score) -> None:
+            """Handle peer score updates."""
+            # Emit event for score updates
+            asyncio.create_task(
+                self.event_bus.emit(
+                    EventType.PEER_DISCOVERED,  # Reuse existing event type
+                    {
+                        "peer_id": peer_id,
+                        "score": score.calculate_overall_score(),
+                        "connection_success_rate": score.connection_success_rate,
+                        "transfer_success_rate": score.transfer_success_rate,
+                    },
+                )
+            )
+
+        def blacklist_callback(peer_id: str, score) -> None:
+            """Handle peer blacklisting."""
+            # Emit event and disconnect if connected
+            asyncio.create_task(
+                self.event_bus.emit(
+                    EventType.PEER_DISCONNECTED,
+                    {
+                        "peer_id": peer_id,
+                        "reason": "blacklisted",
+                        "score": score.calculate_overall_score(),
+                    },
+                )
+            )
+
+        # Set callbacks
+        self.resilience_manager.set_policy_callbacks(
+            should_reconnect=should_reconnect_callback,
+            score_update=score_update_callback,
+            blacklist=blacklist_callback,
+        )

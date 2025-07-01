@@ -54,6 +54,9 @@ jobs:
     - name: Type check with mypy
       run: poetry run mypy --strict beenet/
     
+    - name: Type check in tests with pytest-mypy
+      run: poetry run pytest --mypy -m mypy
+    
     - name: Check docstring coverage
       run: poetry run interrogate beenet/ --fail-under=90
     
