@@ -1,6 +1,7 @@
 """Main peer class for beenet P2P networking."""
 
 import asyncio
+import tempfile
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
@@ -36,6 +37,8 @@ class Peer:
 
         self._running = False
         self._transfers: Dict[str, TransferStream] = {}
+        self._state_dir = Path(tempfile.gettempdir()) / "beenet" / peer_id
+        self._state_dir.mkdir(parents=True, exist_ok=True)
 
     async def start(
         self, listen_port: int = 0, bootstrap_nodes: Optional[list[str]] = None
@@ -83,7 +86,8 @@ class Peer:
 
         try:
             for transfer in self._transfers.values():
-                await transfer.save_state(Path(f"/tmp/{transfer.transfer_id}.state"))
+                state_file = self._state_dir / f"{transfer.transfer_id}.state"
+                await transfer.save_state(state_file)
 
             await self.beequiet.stop()
             await self.kademlia.stop()

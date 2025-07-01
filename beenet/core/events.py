@@ -96,8 +96,12 @@ class EventBus:
                             await handler(event)
                         else:
                             handler(event)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        import logging
+
+                        logging.getLogger(__name__).error(
+                            f"Error in event handler for {event.event_type}: {e}"
+                        )
 
             for handler in self._global_handlers:
                 try:
@@ -105,8 +109,12 @@ class EventBus:
                         await handler(event)
                     else:
                         handler(event)
-                except Exception:
-                    pass
+                except Exception as e:
+                    import logging
+
+                    logging.getLogger(__name__).error(
+                        f"Error in global event handler for {event.event_type}: {e}"
+                    )
 
     async def emit(
         self, event_type: EventType, data: Dict[str, Any], source: Optional[str] = None

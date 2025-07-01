@@ -63,13 +63,14 @@ class ConnectionManager:
         self._lock = asyncio.Lock()
         self.listen_port: Optional[int] = None
 
-    async def start(self, port: int = 0) -> None:
+    async def start(self, port: int = 0, host: str = "127.0.0.1") -> None:
         """Start the connection manager.
 
         Args:
             port: Port to listen on (0 for random)
+            host: Host to bind to (default: localhost)
         """
-        self.listen_port = await self.start_server("0.0.0.0", port)
+        self.listen_port = await self.start_server(host, port)
 
     async def stop(self) -> None:
         """Stop the connection manager and close all connections."""
@@ -138,11 +139,11 @@ class ConnectionManager:
                     )
             return peers
 
-    async def start_server(self, host: str = "0.0.0.0", port: int = 0) -> int:
+    async def start_server(self, host: str = "127.0.0.1", port: int = 0) -> int:
         """Start listening for incoming connections.
 
         Args:
-            host: Host to bind to
+            host: Host to bind to (default: localhost)
             port: Port to bind to (0 for random)
 
         Returns:

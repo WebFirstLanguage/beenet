@@ -103,7 +103,9 @@ class KeyStore:
         key = base64.urlsafe_b64encode(kdf.derive(passphrase.encode()))
         return Fernet(key)
 
-    async def _store_key_unlocked(self, key_id: str, key_data: bytes, encrypted: bool = True) -> None:
+    async def _store_key_unlocked(
+        self, key_id: str, key_data: bytes, encrypted: bool = True
+    ) -> None:
         """Store a key securely (internal, no lock).
 
         Args:

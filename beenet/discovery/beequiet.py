@@ -651,8 +651,10 @@ class BeeQuietDiscovery:
         """
         try:
             self._parse_packet(packet_data)
-        except Exception:
-            pass  # Fail gracefully for fuzz testing
+        except Exception as e:
+            import logging
+
+            logging.getLogger(__name__).debug(f"Failed to parse packet from {peer_address}: {e}")
 
     async def _on_peer_discovered(self, peer_info: Dict[str, Any]) -> None:
         """Internal callback for peer discovery (for tests).
