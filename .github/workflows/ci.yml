@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.11, 3.12]
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: latest
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+    
+    - name: Load cached venv
+      id: cached-poetry-dependencies
+      uses: actions/cache@v3
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+    
+    - name: Install dependencies
+      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+      run: poetry install --no-interaction --no-root
+    
+    - name: Install project
+      run: poetry install --no-interaction
+    
+    - name: Check code formatting with black
+      run: poetry run black --check beenet/ tests/
+    
+    - name: Check import sorting
+      run: poetry run isort --check beenet/ tests/
+    
+    - name: Lint with flake8
+      run: poetry run flake8 beenet/ tests/
+    
+    - name: Type check with mypy
+      run: poetry run mypy --strict beenet/
+    
+    - name: Check docstring coverage
+      run: poetry run interrogate beenet/ --fail-under=90
+    
+    - name: Run tests with coverage
+      run: poetry run pytest tests/ --cov=beenet --cov-report=term-missing
+    
+    - name: Build docs
+      run: |
+        poetry run sphinx-build -W -b html docs/ docs/_build
+    
+    - name: Run pre-commit hooks
+      run: poetry run pre-commit run --all-files
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.12
+    
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: latest
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+    
+    - name: Install dependencies
+      run: poetry install --no-interaction
+    
+    - name: Run safety check
+      run: poetry run safety check -i 51457
+    
+    - name: Run bandit security linter
+      run: poetry run bandit -r beenet/
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.12
+    
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: latest
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+    
+    - name: Install dependencies
+      run: poetry install --no-interaction
+    
+    - name: Build documentation
+      run: poetry run sphinx-build -W -b html docs/ docs/_build
+    
+    - name: Check documentation links
+      run: poetry run sphinx-build -b linkcheck docs/ docs/_build

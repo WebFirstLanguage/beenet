@@ -1,0 +1,10 @@
+NOTICE
+
+This software includes components from the following third-party libraries:
+
+- NoiseProtocol: MIT License
+- PyNaCl: Apache License 2.0  
+- Kademlia: MIT License
+- Cryptography: Apache License 2.0 or BSD License
+
+See individual package licenses for full terms.
