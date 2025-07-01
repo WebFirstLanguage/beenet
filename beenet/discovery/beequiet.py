@@ -183,12 +183,12 @@ class BeeQuietDiscovery:
         except Exception as e:
             raise DiscoveryError(f"Failed to send WHO_IS_HERE: {e}")
 
-    async def send_i_am_here(self, target_addr: str, nonce: bytes) -> None:
+    async def send_i_am_here(self, nonce: bytes, peer_address: tuple) -> None:
         """Send I_AM_HERE response and derive session key.
 
         Args:
-            target_addr: Address to send response to
             nonce: Nonce from WHO_IS_HERE message
+            peer_address: Address tuple (host, port) to send response to
         """
         if not self._transport:
             raise DiscoveryError("Transport not available")
@@ -197,6 +197,7 @@ class BeeQuietDiscovery:
             response_data = secrets.token_bytes(16)
 
             session_key = self._derive_session_key(nonce, response_data)
+            target_addr = f"{peer_address[0]}:{peer_address[1]}"
             self._session_keys[target_addr] = session_key
 
             message_data = {
@@ -208,10 +209,7 @@ class BeeQuietDiscovery:
             payload = json.dumps(message_data).encode("utf-8")
             packet = self._create_packet(BeeQuietMessageType.I_AM_HERE, payload)
 
-            host, port = (
-                target_addr.split(":") if ":" in target_addr else (target_addr, self.MULTICAST_PORT)
-            )
-            self._transport.sendto(packet, (host, int(port)))
+            self._transport.sendto(packet, peer_address)
 
             logger.debug(f"Sent I_AM_HERE to {target_addr}")
 
@@ -347,6 +345,10 @@ class BeeQuietDiscovery:
             Encrypted payload
         """
         try:
+            # Ensure session key is exactly 32 bytes
+            if len(session_key) != 32:
+                raise ValueError(f"Session key must be exactly 32 bytes, got {len(session_key)}")
+                
             cipher = ChaCha20Poly1305(session_key)
             nonce = secrets.token_bytes(12)
             ciphertext = cipher.encrypt(nonce, payload, None)
@@ -369,6 +371,10 @@ class BeeQuietDiscovery:
         try:
             if len(encrypted_payload) < 12:
                 raise ValueError("Encrypted payload too short")
+
+            # Ensure session key is exactly 32 bytes
+            if len(session_key) != 32:
+                raise ValueError(f"Session key must be exactly 32 bytes, got {len(session_key)}")
 
             nonce = encrypted_payload[:12]
             ciphertext = encrypted_payload[12:]
@@ -616,9 +622,12 @@ class BeeQuietDiscovery:
             session_key: Session key for decryption
             
         Returns:
-            Decrypted message
+            Decrypted message or None if decryption fails
         """
-        return self._decrypt_payload(encrypted_message, session_key)
+        try:
+            return self._decrypt_payload(encrypted_message, session_key)
+        except Exception:
+            return None  # Fail gracefully for invalid decryption
     
     async def _on_peer_discovered(self, peer_info: dict) -> None:
         """Internal callback for peer discovery (for tests).
