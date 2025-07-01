@@ -116,12 +116,13 @@ class Peer:
                 host, port = address.split(":")
                 peer_info = {"peer_id": peer_id, "address": host, "port": int(port)}
             else:
-                peer_info = await self.kademlia.find_peer(peer_id)
-                if not peer_info:
+                peer_info_result = await self.kademlia.find_peer(peer_id)
+                if not peer_info_result:
                     return False
+                peer_info = dict(peer_info_result)
 
             connection = await self.connection_manager.connect_to_peer(
-                peer_id, peer_info["address"], peer_info["port"]
+                peer_id, str(peer_info["address"]), int(peer_info["port"])
             )
 
             if connection:

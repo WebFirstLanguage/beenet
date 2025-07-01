@@ -2,7 +2,7 @@
 
 from typing import Any, Optional
 
-from noise.connection import Keypair, NoiseConnection
+from noise.connection import Keypair, NoiseConnection  # type: ignore[import-untyped]
 
 from ..core.errors import CryptoError
 
@@ -41,7 +41,7 @@ class NoiseChannel:
 
             if self.is_initiator:
                 message = self._noise.write_message()
-                return message
+                return bytes(message)
             else:
                 return b""
 
@@ -69,7 +69,7 @@ class NoiseChannel:
                 return None
             else:
                 response = self._noise.write_message()
-                return response
+                return bytes(response)
 
         except Exception as e:
             raise CryptoError(f"Failed to process handshake message: {e}")
@@ -91,7 +91,7 @@ class NoiseChannel:
 
         try:
             ciphertext = self._noise.encrypt(plaintext)
-            return ciphertext
+            return bytes(ciphertext)
         except Exception as e:
             raise CryptoError(f"Failed to encrypt data: {e}")
 
@@ -112,7 +112,7 @@ class NoiseChannel:
 
         try:
             plaintext = self._noise.decrypt(ciphertext)
-            return plaintext
+            return bytes(plaintext)
         except Exception as e:
             raise CryptoError(f"Failed to decrypt data: {e}")
 

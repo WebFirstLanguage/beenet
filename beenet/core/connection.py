@@ -55,7 +55,7 @@ class ConnectionManager:
     - Key rotation with graceful connection migration
     """
 
-    def __init__(self, event_bus: EventBus, key_manager=None):
+    def __init__(self, event_bus: EventBus, key_manager: Any = None):
         self.event_bus = event_bus
         self.key_manager = key_manager
         self._connections: Dict[str, Connection] = {}
@@ -103,7 +103,10 @@ class ConnectionManager:
             peer_address = writer.get_extra_info("peername")
             peer_id = f"incoming_{peer_address[0]}_{peer_address[1]}"
 
-            connection = Connection(peer_id, noise_channel, writer.transport)
+            transport = writer.transport
+            if transport is None:
+                raise NetworkError("Transport is None")
+            connection = Connection(peer_id, noise_channel, transport)
 
             async with self._lock:
                 self._connections[peer_id] = connection
@@ -153,7 +156,7 @@ class ConnectionManager:
 
             await self.event_bus.emit(EventType.NETWORK_ERROR, {"host": host, "port": actual_port})
 
-            return actual_port
+            return int(actual_port)
 
         except Exception as e:
             raise NetworkError(f"Failed to start server: {e}")
@@ -204,6 +207,8 @@ class ConnectionManager:
 
             await noise_channel.start_handshake(static_key)
 
+            if transport is None:
+                raise NetworkError("Transport is None")
             connection = Connection(peer_id, noise_channel, transport)
 
             async with self._lock:

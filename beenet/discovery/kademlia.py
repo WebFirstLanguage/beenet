@@ -5,8 +5,8 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from kademlia.network import Server
-from kademlia.node import Node
+from kademlia.network import Server  # type: ignore[import-untyped]
+from kademlia.node import Node  # type: ignore[import-untyped]
 
 from ..core.errors import DiscoveryError
 
@@ -122,7 +122,7 @@ class KademliaDiscovery:
             peer_info = json.loads(peer_data.decode("utf-8"))
             logger.debug(f"Found peer {peer_id}: {peer_info}")
 
-            return peer_info
+            return dict(peer_info)
 
         except Exception as e:
             logger.warning(f"Failed to find peer {peer_id}: {e}")
@@ -186,7 +186,8 @@ class KademliaDiscovery:
             return None
 
         try:
-            return self._dht.node.id.hex()
+            node_id = self._dht.node.id.hex()
+            return str(node_id)
         except Exception:
             return None
 

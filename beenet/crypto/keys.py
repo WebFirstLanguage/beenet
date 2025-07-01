@@ -98,6 +98,8 @@ class KeyManager:
             await self.load_or_generate_static_key(peer_id)
 
         try:
+            if self._current_public_key is None:
+                raise CryptoError("No current public key available")
             old_public_key = bytes(self._current_public_key.encode(RawEncoder))
 
             _, new_public_key = await self.generate_static_key(peer_id)
