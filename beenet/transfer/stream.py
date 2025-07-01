@@ -48,6 +48,7 @@ class TransferStream:
         self.state: Optional[TransferState] = None
         self.merkle_tree: Optional[MerkleTree] = None
         self._progress_callback: Optional[Callable[[float], None]] = None
+        self._file_path: Optional[Path] = None
 
     async def start_send(self, file_path: Path, peer_address: str) -> None:
         """Start sending a file to a peer.
@@ -92,6 +93,7 @@ class TransferStream:
         self.state = TransferState(self.transfer_id, total_chunks)
         self.state.merkle_root = expected_root
         self.state.chunk_size = self.chunker.chunk_size
+        self._file_path = file_path
 
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -159,6 +161,15 @@ class TransferStream:
         computed_hash = MerkleTree.hash_chunk(chunk_data)
         if computed_hash != proof.chunk_hash:
             return False
+
+        # Write chunk data to file at the correct position
+        if self._file_path:
+            try:
+                with open(self._file_path, "r+b") as f:
+                    f.seek(chunk_index * self.state.chunk_size)
+                    f.write(chunk_data)
+            except OSError:
+                return False
 
         self.state.completed_chunks.add(chunk_index)
         self._update_progress()
