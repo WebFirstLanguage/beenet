@@ -1,0 +1,498 @@
+openapi: 3.0.3
+info:
+  title: Beenet Local API
+  description: IMP-style local API for Beenet mesh networking protocol
+  version: 0.1.0
+  contact:
+    name: Beenet Project
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local development server
+
+paths:
+  /messages:
+    post:
+      summary: Submit a new message
+      operationId: sendMessage
+      tags:
+        - Messages
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - source
+                - destination
+                - payload
+              properties:
+                source:
+                  type: string
+                  description: Source BeeName or NodeID
+                  example: "alice"
+                destination:
+                  type: string
+                  description: Destination BeeName or NodeID
+                  example: "bob"
+                payload:
+                  type: string
+                  format: base64
+                  description: Message payload (base64 encoded)
+                  example: "SGVsbG8gQm9iIQ=="
+                include_digest:
+                  type: boolean
+                  description: Include SHA-256 digest
+                  default: true
+                signature:
+                  type: string
+                  format: hex
+                  description: Ed25519 signature (optional)
+      responses:
+        201:
+          description: Message accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    description: Message ID
+                    example: "123456"
+                  status:
+                    type: string
+                    enum: [accepted, queued]
+                  signature_valid:
+                    type: boolean
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      summary: List messages
+      operationId: listMessages
+      tags:
+        - Messages
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [accepted, queued, sent, delivered, failed, expired]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        200:
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MessageSummary'
+
+  /messages/{id}:
+    get:
+      summary: Get message details
+      operationId: getMessage
+      tags:
+        - Messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Message details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageDetail'
+        404:
+          description: Message not found
+
+    delete:
+      summary: Cancel a queued message
+      operationId: cancelMessage
+      tags:
+        - Messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Message cancelled
+        400:
+          description: Cannot cancel message in current status
+        404:
+          description: Message not found
+
+  /messages/{id}/status:
+    get:
+      summary: Get message status only
+      operationId: getMessageStatus
+      tags:
+        - Messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Message status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [accepted, queued, sent, delivered, failed, expired]
+                  updated_at:
+                    type: string
+                    format: date-time
+
+  /names:
+    post:
+      summary: Register a name binding
+      operationId: registerName
+      tags:
+        - Names
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - beename
+                - node_id
+              properties:
+                beename:
+                  type: string
+                  pattern: '^[a-z0-9-]{3,32}$'
+                  example: "alice"
+                node_id:
+                  type: string
+                  format: hex
+                  minLength: 64
+                  maxLength: 64
+                  example: "0101010101010101010101010101010101010101010101010101010101010101"
+                public_key:
+                  type: string
+                  format: hex
+                  minLength: 64
+                  maxLength: 64
+      responses:
+        201:
+          description: Name registered
+        400:
+          description: Invalid name or already taken
+
+    get:
+      summary: List registered names
+      operationId: listNames
+      tags:
+        - Names
+      responses:
+        200:
+          description: List of registered names
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    beename:
+                      type: string
+                    node_id:
+                      type: string
+
+  /names/{beename}:
+    get:
+      summary: Resolve name to NodeID
+      operationId: resolveName
+      tags:
+        - Names
+      parameters:
+        - name: beename
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Name resolved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  beename:
+                    type: string
+                  node_id:
+                    type: string
+        404:
+          description: Name not found
+
+    delete:
+      summary: Remove name binding
+      operationId: unregisterName
+      tags:
+        - Names
+      parameters:
+        - name: beename
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Name unregistered
+        404:
+          description: Name not found
+
+  /admin/config:
+    get:
+      summary: Get current configuration
+      operationId: getConfig
+      tags:
+        - Admin
+      responses:
+        200:
+          description: Current configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Config'
+
+    patch:
+      summary: Update configuration
+      operationId: updateConfig
+      tags:
+        - Admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                regulatory_mode:
+                  type: string
+                  enum: [part97_enabled, part97_disabled]
+                encryption_enabled:
+                  type: boolean
+                swarm_id:
+                  type: string
+                  format: hex
+                message_timeout:
+                  type: integer
+                  description: Timeout in seconds
+                max_queue_size:
+                  type: integer
+      responses:
+        200:
+          description: Configuration updated
+        400:
+          description: Invalid configuration
+
+  /admin/part97:
+    get:
+      summary: Get Part 97 regulatory status
+      operationId: getPart97Status
+      tags:
+        - Admin
+      responses:
+        200:
+          description: Part 97 status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  encryption_allowed:
+                    type: boolean
+                  callsign_required:
+                    type: boolean
+                  profile:
+                    type: string
+                    enum: [radio, standard]
+
+    put:
+      summary: Set Part 97 mode
+      operationId: setPart97Mode
+      tags:
+        - Admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - enabled
+              properties:
+                enabled:
+                  type: boolean
+      responses:
+        200:
+          description: Part 97 mode updated
+
+  /admin/callsign:
+    get:
+      summary: Get callsign binding
+      operationId: getCallsign
+      tags:
+        - Admin
+      responses:
+        200:
+          description: Current callsign
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  callsign:
+                    type: string
+                    pattern: '^[A-Z0-9/-]{2,16}$'
+                  beename:
+                    type: string
+                  node_id:
+                    type: string
+
+    put:
+      summary: Set callsign binding
+      operationId: setCallsign
+      tags:
+        - Admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - callsign
+              properties:
+                callsign:
+                  type: string
+                  pattern: '^[A-Z0-9/-]{2,16}$'
+                  example: "K7TEST"
+                beename:
+                  type: string
+                node_id:
+                  type: string
+      responses:
+        200:
+          description: Callsign set
+        400:
+          description: Invalid callsign
+
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+
+    MessageSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        source:
+          type: string
+        destination:
+          type: string
+        status:
+          type: string
+          enum: [accepted, queued, sent, delivered, failed, expired]
+        created_at:
+          type: string
+          format: date-time
+
+    MessageDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        source:
+          type: string
+        destination:
+          type: string
+        payload_size:
+          type: integer
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        queued_at:
+          type: string
+          format: date-time
+        sent_at:
+          type: string
+          format: date-time
+        delivered_at:
+          type: string
+          format: date-time
+        envelope:
+          type: object
+          properties:
+            version:
+              type: integer
+            source:
+              type: string
+            destination:
+              type: string
+            payload:
+              type: string
+              format: base64
+            digest:
+              type: string
+              format: hex
+            signature:
+              type: string
+              format: hex
+
+    Config:
+      type: object
+      properties:
+        regulatory_mode:
+          type: string
+          enum: [part97_enabled, part97_disabled]
+        encryption_enabled:
+          type: boolean
+        callsign:
+          type: string
+        swarm_id:
+          type: string
+          format: hex
+        message_timeout:
+          type: integer
+        max_queue_size:
+          type: integer
