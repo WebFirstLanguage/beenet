@@ -1,0 +1,18 @@
+[package]
+name = "bee-api"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+bee-core = { path = "../bee-core" }
+bee-dht = { path = "../bee-dht" }
+bee-route = { path = "../bee-route" }
+bee-transport = { path = "../bee-transport" }
+tokio = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+tokio-test = { workspace = true }

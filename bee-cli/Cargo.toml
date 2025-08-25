@@ -1,0 +1,15 @@
+[package]
+name = "bee-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+bee-api = { path = "../bee-api" }
+bee-core = { path = "../bee-core" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
