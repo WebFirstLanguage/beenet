@@ -229,9 +229,9 @@ mod property_tests {
                     let node_id = common::test_node_id(node_byte);
 
                     if is_register {
-                        let _ = registry.register(name.clone(), node_id);
-                        // If registration succeeded, resolution must work
-                        if registry.resolve(&name).is_some() {
+                        let result = registry.register(name.clone(), node_id);
+                        // If registration succeeded, resolution must work with the new node_id
+                        if result.is_ok() {
                             assert_eq!(registry.resolve(&name), Some(node_id));
                         }
                     } else {
