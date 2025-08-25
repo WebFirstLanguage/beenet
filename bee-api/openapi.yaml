@@ -91,6 +91,8 @@ paths:
           schema:
             type: integer
             default: 100
+            minimum: 1
+            maximum: 1000
       responses:
         200:
           description: List of messages
@@ -98,6 +100,7 @@ paths:
             application/json:
               schema:
                 type: array
+                maxItems: 1000
                 items:
                   $ref: '#/components/schemas/MessageSummary'
 
@@ -238,6 +241,7 @@ paths:
           required: true
           schema:
             type: string
+            pattern: '^[a-z0-9-]{3,32}$'
       responses:
         200:
           description: Name resolved
@@ -264,6 +268,7 @@ paths:
           required: true
           schema:
             type: string
+            pattern: '^[a-z0-9-]{3,32}$'
       responses:
         200:
           description: Name unregistered
@@ -474,10 +479,12 @@ components:
               format: byte
             digest:
               type: string
-              format: hex
+              description: "SHA-256 digest, 64 lowercase hex characters"
+              pattern: '^[0-9a-f]{64}$'
             signature:
               type: string
-              format: hex
+              description: "Ed25519 signature, 64 bytes hex-encoded (128 lowercase hex characters)"
+              pattern: '^[0-9a-f]{128}$'
 
     Config:
       type: object
