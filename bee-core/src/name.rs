@@ -34,7 +34,7 @@ impl BeeName {
     pub fn new(name: &str) -> Result<Self, BeeNameError> {
         // Check length
         let len = name.len();
-        if len < 3 || len > 32 {
+        if !(3..=32).contains(&len) {
             return Err(BeeNameError::InvalidLength(len));
         }
 

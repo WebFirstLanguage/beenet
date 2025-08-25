@@ -3,7 +3,7 @@
 //! ensuring signatures are accepted when valid and rejected when invalid.
 
 use bee_core::identity::Identity;
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, SigningKey, Verifier};
 use proptest::prelude::*;
 
 #[test]

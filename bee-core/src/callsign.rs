@@ -35,7 +35,7 @@ impl Callsign {
     pub fn new(callsign: &str) -> Result<Self, CallsignError> {
         // Check length
         let len = callsign.len();
-        if len < 2 || len > 16 {
+        if !(2..=16).contains(&len) {
             return Err(CallsignError::InvalidLength(len));
         }
 

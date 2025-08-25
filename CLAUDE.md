@@ -24,6 +24,7 @@ cargo fmt                     # Format code
 cargo fmt --check            # Check formatting without changes
 cargo clippy                 # Run linter
 cargo clippy -- -D warnings  # Treat warnings as errors
+cargo clippy --all --all-targets -- -D warnings  # ALWAYS RUN THIS COMMAND. it will find stuff you missed.
 ```
 
 ## Architecture & Development Approach

@@ -3,7 +3,7 @@
 //! and collision-resistant using SHA-256 hashing.
 
 use bee_core::identity::{Identity, NodeId};
-use ed25519_dalek::{SigningKey, VerifyingKey};
+use ed25519_dalek::SigningKey;
 use proptest::prelude::*;
 use sha2::{Digest, Sha256};
 

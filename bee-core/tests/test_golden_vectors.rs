@@ -3,7 +3,7 @@
 //! specified in the Beenet protocol documentation.
 
 use bee_core::callsign::Callsign;
-use bee_core::identity::{Identity, NodeId};
+use bee_core::identity::NodeId;
 use bee_core::name::BeeName;
 use ed25519_dalek::SigningKey;
 use sha2::{Digest, Sha256};
@@ -20,7 +20,8 @@ fn test_beename_examples() {
     assert_eq!(beename.as_str(), &max_name);
 
     for name in valid_names {
-        let beename = BeeName::new(name).expect(&format!("Should accept valid name: {}", name));
+        let beename =
+            BeeName::new(name).unwrap_or_else(|_| panic!("Should accept valid name: {}", name));
         assert_eq!(beename.as_str(), name);
     }
 
@@ -52,8 +53,8 @@ fn test_callsign_examples() {
     assert_eq!(cs.as_str(), &max_callsign);
 
     for callsign in valid_callsigns {
-        let cs =
-            Callsign::new(callsign).expect(&format!("Should accept valid callsign: {}", callsign));
+        let cs = Callsign::new(callsign)
+            .unwrap_or_else(|_| panic!("Should accept valid callsign: {}", callsign));
         assert_eq!(cs.as_str(), callsign);
     }
 

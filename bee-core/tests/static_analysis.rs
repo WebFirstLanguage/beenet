@@ -21,7 +21,7 @@ const BANNED_MDNS_PATTERNS: &[&str] = &[
 ];
 
 /// List of file extensions to check
-const CHECK_EXTENSIONS: &[&str] = &["rs", "toml", "md", "txt", "yaml", "yml", "json"];
+// const CHECK_EXTENSIONS: &[&str] = &["rs", "toml", "md", "txt", "yaml", "yml", "json"];
 
 #[test]
 fn no_mdns_calls_present() {

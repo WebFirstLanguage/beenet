@@ -1,4 +1,3 @@
-use crate::link::LinkProfile;
 use crate::network::{NetworkError, SimNet};
 use crate::topology::TopologyBuilder;
 use bee_core::clock::MockClock;
@@ -68,7 +67,6 @@ fn simnet_delivery_follows_latency_and_loss_profile() {
 
     // Send multiple messages - some should be lost deterministically
     let mut received_count = 0;
-    let mut lost_count = 0;
 
     for i in 0..10 {
         let msg = vec![i; 10];
@@ -81,11 +79,11 @@ fn simnet_delivery_follows_latency_and_loss_profile() {
     }
 
     // Count received messages
-    while let Some(_) = net.receive(node2) {
+    while net.receive(node2).is_some() {
         received_count += 1;
     }
 
-    lost_count = 10 - received_count;
+    let lost_count = 10 - received_count;
 
     // With 50% loss rate, we should lose some packets
     assert!(lost_count > 0);

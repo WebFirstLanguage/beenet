@@ -42,11 +42,9 @@ fn fuzz_bee_envelope_never_panics() {
 
 fn generate_fuzz_data(seed: u64) -> Vec<u8> {
     use std::collections::hash_map::RandomState;
-    use std::hash::{BuildHasher, Hash, Hasher};
+    use std::hash::BuildHasher;
 
-    let mut hasher = RandomState::new().build_hasher();
-    seed.hash(&mut hasher);
-    let hash = hasher.finish();
+    let hash = RandomState::new().hash_one(seed);
 
     // Generate various data patterns
     match (hash % 10) as u8 {

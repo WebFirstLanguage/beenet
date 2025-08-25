@@ -1,6 +1,6 @@
 use crate::clock::{Clock, MockClock};
 use crate::envelope::{BeeEnvelope, EnvelopeError};
-use crate::identity::{Identity, NodeId};
+use crate::identity::Identity;
 use proptest::prelude::*;
 use std::time::Duration;
 

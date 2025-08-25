@@ -56,15 +56,15 @@ impl BeeEnvelope {
     /// Compute SHA-256 digest of the envelope contents
     pub fn compute_digest(&self) -> [u8; 32] {
         let mut hasher = Sha256::new();
-        hasher.update(&[self.version]);
+        hasher.update([self.version]);
         hasher.update(self.source.as_bytes());
         if let Some(dest) = &self.destination {
-            hasher.update(&[1u8]);
+            hasher.update([1u8]);
             hasher.update(dest.as_bytes());
         } else {
-            hasher.update(&[0u8]);
+            hasher.update([0u8]);
         }
-        hasher.update(&(self.payload.len() as u32).to_be_bytes());
+        hasher.update((self.payload.len() as u32).to_be_bytes());
         hasher.update(&self.payload);
         hasher.finalize().into()
     }

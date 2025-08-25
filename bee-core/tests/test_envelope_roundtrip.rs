@@ -7,7 +7,6 @@ use bee_core::envelope::{BeeEnvelope, EnvelopeError};
 use bee_core::identity::{Identity, NodeId};
 use ed25519_dalek::SigningKey;
 use proptest::prelude::*;
-use sha2::{Digest, Sha256};
 
 #[test]
 fn envelope_roundtrip_preserves_payload() {
@@ -82,7 +81,7 @@ fn envelope_with_integrity_digest() {
 
     // Add SHA-256 digest
     let digest = envelope.compute_digest();
-    envelope.set_digest(digest.clone());
+    envelope.set_digest(digest);
 
     let serialized = envelope.serialize();
     let restored = BeeEnvelope::parse(&serialized).expect("Should parse");
