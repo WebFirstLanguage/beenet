@@ -11,11 +11,24 @@ struct TestServer {
 }
 
 async fn start_test_server() -> TestServer {
-    // For now, return a mock server address
-    // In a real implementation, we'd spawn an actual server
-    TestServer {
-        addr: "127.0.0.1:8080".parse().unwrap(),
-    }
+    use bee_api::server::ApiServer;
+    use bee_api::ApiConfig;
+    use std::net::TcpListener;
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    drop(listener);
+
+    let config = ApiConfig::new();
+    let server = ApiServer::new(config, addr);
+
+    tokio::spawn(async move {
+        server.run().await;
+    });
+
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    TestServer { addr }
 }
 
 #[tokio::test]
@@ -24,7 +37,7 @@ async fn test_contract_blackbox_send_receive() {
     let server = start_test_server().await;
     let client = reqwest::Client::new();
     let base_url = format!("http://{}", server.addr);
-    
+
     // Step 1: Register names
     let response = client
         .post(format!("{}/api/v1/names", base_url))
@@ -36,7 +49,7 @@ async fn test_contract_blackbox_send_receive() {
         .await
         .unwrap();
     assert_eq!(response.status(), 201);
-    
+
     let response = client
         .post(format!("{}/api/v1/names", base_url))
         .json(&json!({
@@ -47,7 +60,7 @@ async fn test_contract_blackbox_send_receive() {
         .await
         .unwrap();
     assert_eq!(response.status(), 201);
-    
+
     // Step 2: Send message from alice to bob
     let response = client
         .post(format!("{}/api/v1/messages", base_url))
@@ -60,20 +73,23 @@ async fn test_contract_blackbox_send_receive() {
         .await
         .unwrap();
     assert_eq!(response.status(), 201);
-    
+
     let message_id: String = response.json::<serde_json::Value>().await.unwrap()["id"]
         .as_str()
         .unwrap()
         .to_string();
-    
+
     // Step 3: Check message status
     let response = client
-        .get(format!("{}/api/v1/messages/{}/status", base_url, message_id))
+        .get(format!(
+            "{}/api/v1/messages/{}/status",
+            base_url, message_id
+        ))
         .send()
         .await
         .unwrap();
     assert_eq!(response.status(), 200);
-    
+
     let status = response.json::<serde_json::Value>().await.unwrap();
     assert!(["accepted", "queued", "sent"].contains(&status["status"].as_str().unwrap()));
 }
@@ -84,7 +100,7 @@ async fn test_contract_headers_and_digests_present() {
     let server = start_test_server().await;
     let client = reqwest::Client::new();
     let base_url = format!("http://{}", server.addr);
-    
+
     // Register nodes
     client
         .post(format!("{}/api/v1/names", base_url))
@@ -95,7 +111,7 @@ async fn test_contract_headers_and_digests_present() {
         .send()
         .await
         .unwrap();
-    
+
     client
         .post(format!("{}/api/v1/names", base_url))
         .json(&json!({
@@ -105,7 +121,7 @@ async fn test_contract_headers_and_digests_present() {
         .send()
         .await
         .unwrap();
-    
+
     // Send message
     let response = client
         .post(format!("{}/api/v1/messages", base_url))
@@ -118,21 +134,21 @@ async fn test_contract_headers_and_digests_present() {
         .send()
         .await
         .unwrap();
-    
+
     let message_id: String = response.json::<serde_json::Value>().await.unwrap()["id"]
         .as_str()
         .unwrap()
         .to_string();
-    
+
     // Get full message details
     let response = client
         .get(format!("{}/api/v1/messages/{}", base_url, message_id))
         .send()
         .await
         .unwrap();
-    
+
     let message = response.json::<serde_json::Value>().await.unwrap();
-    
+
     // Verify required fields
     assert!(message["envelope"]["version"].is_number());
     assert!(message["envelope"]["source"].is_string());
@@ -147,7 +163,7 @@ async fn test_contract_name_resolution_failure() {
     let server = start_test_server().await;
     let client = reqwest::Client::new();
     let base_url = format!("http://{}", server.addr);
-    
+
     // Try to send to unregistered name
     let response = client
         .post(format!("{}/api/v1/messages", base_url))
@@ -159,9 +175,9 @@ async fn test_contract_name_resolution_failure() {
         .send()
         .await
         .unwrap();
-    
+
     assert_eq!(response.status(), 400);
-    
+
     let error = response.json::<serde_json::Value>().await.unwrap();
     assert_eq!(error["error"], "name_not_resolved");
 }
@@ -171,16 +187,16 @@ async fn test_contract_part97_compliance_via_api() {
     let server = start_test_server().await;
     let client = reqwest::Client::new();
     let base_url = format!("http://{}", server.addr);
-    
+
     // Get current Part 97 status
     let response = client
         .get(format!("{}/api/v1/admin/part97", base_url))
         .send()
         .await
         .unwrap();
-    
+
     let part97 = response.json::<serde_json::Value>().await.unwrap();
-    
+
     // For radio profiles, Part 97 should be enabled by default
     if part97["profile"] == "radio" {
         assert_eq!(part97["enabled"], true);
@@ -194,7 +210,7 @@ async fn test_contract_message_lifecycle_via_api() {
     let server = start_test_server().await;
     let client = reqwest::Client::new();
     let base_url = format!("http://{}", server.addr);
-    
+
     // Register nodes
     client
         .post(format!("{}/api/v1/names", base_url))
@@ -205,7 +221,7 @@ async fn test_contract_message_lifecycle_via_api() {
         .send()
         .await
         .unwrap();
-    
+
     client
         .post(format!("{}/api/v1/names", base_url))
         .json(&json!({
@@ -215,7 +231,7 @@ async fn test_contract_message_lifecycle_via_api() {
         .send()
         .await
         .unwrap();
-    
+
     // Send message
     let response = client
         .post(format!("{}/api/v1/messages", base_url))
@@ -227,47 +243,53 @@ async fn test_contract_message_lifecycle_via_api() {
         .send()
         .await
         .unwrap();
-    
+
     let message_id: String = response.json::<serde_json::Value>().await.unwrap()["id"]
         .as_str()
         .unwrap()
         .to_string();
-    
+
     // Track status transitions
     let mut seen_statuses = Vec::new();
-    
+
     for _ in 0..10 {
         let response = client
-            .get(format!("{}/api/v1/messages/{}/status", base_url, message_id))
+            .get(format!(
+                "{}/api/v1/messages/{}/status",
+                base_url, message_id
+            ))
             .send()
             .await
             .unwrap();
-        
+
         let status = response.json::<serde_json::Value>().await.unwrap();
         let current_status = status["status"].as_str().unwrap();
-        
+
         if seen_statuses.is_empty() || seen_statuses.last().unwrap() != current_status {
             seen_statuses.push(current_status.to_string());
         }
-        
+
         if ["delivered", "failed", "expired"].contains(&current_status) {
             break;
         }
-        
+
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
-    
+
     // Verify linear progression
     let valid_progressions = [
         vec!["accepted", "queued", "sent", "delivered"],
         vec!["accepted", "queued", "sent", "failed"],
         vec!["accepted", "queued", "sent", "expired"],
     ];
-    
+
     let is_valid = valid_progressions.iter().any(|progression| {
-        seen_statuses.iter().zip(progression.iter()).all(|(seen, expected)| seen == expected)
+        seen_statuses
+            .iter()
+            .zip(progression.iter())
+            .all(|(seen, expected)| seen == expected)
     });
-    
+
     assert!(is_valid, "Invalid status progression: {:?}", seen_statuses);
 }
 
@@ -276,7 +298,7 @@ async fn test_contract_admin_config_via_api() {
     let server = start_test_server().await;
     let client = reqwest::Client::new();
     let base_url = format!("http://{}", server.addr);
-    
+
     // Get current config
     let response = client
         .get(format!("{}/api/v1/admin/config", base_url))
@@ -284,7 +306,7 @@ async fn test_contract_admin_config_via_api() {
         .await
         .unwrap();
     assert_eq!(response.status(), 200);
-    
+
     // Update config
     let response = client
         .patch(format!("{}/api/v1/admin/config", base_url))
@@ -296,14 +318,14 @@ async fn test_contract_admin_config_via_api() {
         .await
         .unwrap();
     assert_eq!(response.status(), 200);
-    
+
     // Verify changes
     let response = client
         .get(format!("{}/api/v1/admin/config", base_url))
         .send()
         .await
         .unwrap();
-    
+
     let config = response.json::<serde_json::Value>().await.unwrap();
     assert_eq!(config["regulatory_mode"], "part97_disabled");
     assert_eq!(config["encryption_enabled"], true);
@@ -314,13 +336,13 @@ async fn test_contract_signature_verification_via_api() {
     let server = start_test_server().await;
     let client = reqwest::Client::new();
     let base_url = format!("http://{}", server.addr);
-    
+
     // Create identity for signing
     use ed25519_dalek::SigningKey;
     let signing_key = SigningKey::from_bytes(&[42u8; 32]);
     let identity = Identity::new(signing_key);
     let node_id = identity.node_id();
-    
+
     // Register node
     client
         .post(format!("{}/api/v1/names", base_url))
@@ -332,16 +354,12 @@ async fn test_contract_signature_verification_via_api() {
         .send()
         .await
         .unwrap();
-    
+
     // Send signed message
     let payload = b"Signed message";
-    let mut envelope = BeeEnvelope::new(
-        node_id,
-        Some(common::test_node_id(1)),
-        payload.to_vec(),
-    );
+    let mut envelope = BeeEnvelope::new(node_id, Some(common::test_node_id(1)), payload.to_vec());
     envelope.sign(&identity);
-    
+
     let response = client
         .post(format!("{}/api/v1/messages", base_url))
         .json(&json!({
@@ -353,9 +371,9 @@ async fn test_contract_signature_verification_via_api() {
         .send()
         .await
         .unwrap();
-    
+
     assert_eq!(response.status(), 201);
-    
+
     let result = response.json::<serde_json::Value>().await.unwrap();
     assert_eq!(result["signature_valid"], true);
 }
@@ -365,7 +383,7 @@ async fn test_contract_message_cancellation_via_api() {
     let server = start_test_server().await;
     let client = reqwest::Client::new();
     let base_url = format!("http://{}", server.addr);
-    
+
     // Register nodes
     client
         .post(format!("{}/api/v1/names", base_url))
@@ -376,7 +394,7 @@ async fn test_contract_message_cancellation_via_api() {
         .send()
         .await
         .unwrap();
-    
+
     client
         .post(format!("{}/api/v1/names", base_url))
         .json(&json!({
@@ -386,7 +404,7 @@ async fn test_contract_message_cancellation_via_api() {
         .send()
         .await
         .unwrap();
-    
+
     // Send message
     let response = client
         .post(format!("{}/api/v1/messages", base_url))
@@ -398,28 +416,31 @@ async fn test_contract_message_cancellation_via_api() {
         .send()
         .await
         .unwrap();
-    
+
     let message_id: String = response.json::<serde_json::Value>().await.unwrap()["id"]
         .as_str()
         .unwrap()
         .to_string();
-    
+
     // Cancel the message while it's queued
     let response = client
         .delete(format!("{}/api/v1/messages/{}", base_url, message_id))
         .send()
         .await
         .unwrap();
-    
+
     assert_eq!(response.status(), 200);
-    
+
     // Check status is now failed/cancelled
     let response = client
-        .get(format!("{}/api/v1/messages/{}/status", base_url, message_id))
+        .get(format!(
+            "{}/api/v1/messages/{}/status",
+            base_url, message_id
+        ))
         .send()
         .await
         .unwrap();
-    
+
     let status = response.json::<serde_json::Value>().await.unwrap();
     assert_eq!(status["status"], "failed");
 }

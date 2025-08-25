@@ -113,6 +113,10 @@ fn check_file(path: &Path, violations: &mut Vec<(PathBuf, usize, String, String)
 
         for pattern in BANNED_MDNS_PATTERNS {
             if line.to_lowercase().contains(&pattern.to_lowercase()) {
+                if *pattern == ".local" && (line.contains("local_addr()") || line.contains(".local_addr()")) {
+                    continue;
+                }
+                
                 violations.push((
                     path.to_path_buf(),
                     line_num + 1,
