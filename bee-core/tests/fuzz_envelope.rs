@@ -115,7 +115,7 @@ struct FuzzInput {
 #[test]
 fn fuzz_with_structured_input() {
     for seed in 0..10_000u32 {
-        let mut data = vec![seed as u8; 1024];
+        let data = vec![seed as u8; 1024];
         let mut u = Unstructured::new(&data);
 
         if let Ok(input) = FuzzInput::arbitrary(&mut u) {
