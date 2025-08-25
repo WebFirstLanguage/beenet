@@ -112,7 +112,11 @@ impl Message {
         self.delivered_at
     }
 
-    pub fn transition_to<C: Clock>(&mut self, clock: &C, new_status: MessageStatus) -> Result<(), ApiError> {
+    pub fn transition_to<C: Clock>(
+        &mut self,
+        clock: &C,
+        new_status: MessageStatus,
+    ) -> Result<(), ApiError> {
         if !self.is_valid_transition(new_status) {
             return Err(ApiError::InvalidStatusTransition);
         }
@@ -201,7 +205,9 @@ impl MessageQueue {
         let mut i = 0;
 
         while i < self.messages.len() {
-            let reference_time = self.messages[i].queued_at.unwrap_or(self.messages[i].created_at);
+            let reference_time = self.messages[i]
+                .queued_at
+                .unwrap_or(self.messages[i].created_at);
             let age = now.saturating_sub(reference_time);
             if age > self.timeout {
                 let mut msg = self.messages.remove(i).unwrap();

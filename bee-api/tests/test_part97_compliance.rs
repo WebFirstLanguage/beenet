@@ -219,7 +219,7 @@ fn test_periodic_id_beacon_tracking() {
     let clock = bee_core::clock::MockClock::new();
     admin.mark_id_beacon_sent(&clock).unwrap();
     assert!(!admin.is_id_beacon_due(&clock));
-    
+
     // Simulate time passing (would use virtual clock in real implementation)
     // For testing, manually mark as due
     admin.test_force_id_beacon_due();

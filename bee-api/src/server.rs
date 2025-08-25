@@ -225,7 +225,10 @@ async fn handle_list_messages(
     Ok(warp::reply::json(&json!([])))
 }
 
-async fn handle_get_message(id: String, _client: ApiClient<MockClock>) -> Result<impl Reply, warp::Rejection> {
+async fn handle_get_message(
+    id: String,
+    _client: ApiClient<MockClock>,
+) -> Result<impl Reply, warp::Rejection> {
     Ok(warp::reply::json(&json!({
         "id": id,
         "status": "queued",
@@ -320,7 +323,9 @@ async fn handle_update_config(
     Ok(warp::reply::json(&config))
 }
 
-async fn handle_get_part97_status(_client: ApiClient<MockClock>) -> Result<impl Reply, warp::Rejection> {
+async fn handle_get_part97_status(
+    _client: ApiClient<MockClock>,
+) -> Result<impl Reply, warp::Rejection> {
     Ok(warp::reply::json(&json!({
         "enabled": true,
         "encryption_allowed": false,
