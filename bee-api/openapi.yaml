@@ -40,7 +40,7 @@ paths:
                   example: "bob"
                 payload:
                   type: string
-                  format: base64
+                  format: byte
                   description: Message payload (base64 encoded)
                   example: "SGVsbG8gQm9iIQ=="
                 include_digest:
@@ -471,7 +471,7 @@ components:
               type: string
             payload:
               type: string
-              format: base64
+              format: byte
             digest:
               type: string
               format: hex
