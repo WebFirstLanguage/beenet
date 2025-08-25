@@ -1,129 +1,174 @@
 mod common;
 
 use bee_api::{ApiError, Message, MessageQueue, MessageStatus};
+use bee_core::clock::{Clock, MockClock};
 use std::time::Duration;
 
 #[test]
 fn test_message_status_starts_accepted() {
+    let clock = MockClock::new();
     let message = Message::new(
+        &clock,
         common::test_node_id(1),
         common::test_node_id(1),
-        vec![1, 2, 3],
+        b"test payload".to_vec(),
     );
     assert_eq!(message.status(), MessageStatus::Accepted);
 }
 
 #[test]
-fn test_message_transitions_accepted_to_queued() {
+fn test_basic_status_transitions() {
+    let clock = MockClock::new();
     let mut message = Message::new(
+        &clock,
         common::test_node_id(1),
-        common::test_node_id(1),
-        vec![1, 2, 3],
+        common::test_node_id(2),
+        b"test payload".to_vec(),
     );
 
-    assert!(message.transition_to(MessageStatus::Queued).is_ok());
+    assert!(message.transition_to(&clock, MessageStatus::Queued).is_ok());
     assert_eq!(message.status(), MessageStatus::Queued);
 
-    // Cannot go back to Accepted
-    assert!(message.transition_to(MessageStatus::Accepted).is_err());
+    // Should not allow backward transitions
+    assert!(message
+        .transition_to(&clock, MessageStatus::Accepted)
+        .is_err());
 }
 
 #[test]
-fn test_message_transitions_queued_to_sent() {
+fn test_queued_to_sent_transition() {
+    let clock = MockClock::new();
     let mut message = Message::new(
+        &clock,
         common::test_node_id(1),
-        common::test_node_id(1),
-        vec![1, 2, 3],
+        common::test_node_id(2),
+        b"test payload".to_vec(),
     );
 
-    message.transition_to(MessageStatus::Queued).unwrap();
-    assert!(message.transition_to(MessageStatus::Sent).is_ok());
+    message
+        .transition_to(&clock, MessageStatus::Queued)
+        .unwrap();
+    assert!(message.transition_to(&clock, MessageStatus::Sent).is_ok());
     assert_eq!(message.status(), MessageStatus::Sent);
 }
 
 #[test]
-fn test_message_transitions_sent_to_delivered() {
+fn test_sent_to_delivered_transition() {
+    let clock = MockClock::new();
     let mut message = Message::new(
+        &clock,
         common::test_node_id(1),
-        common::test_node_id(1),
-        vec![1, 2, 3],
+        common::test_node_id(2),
+        b"test payload".to_vec(),
     );
 
-    message.transition_to(MessageStatus::Queued).unwrap();
-    message.transition_to(MessageStatus::Sent).unwrap();
-    assert!(message.transition_to(MessageStatus::Delivered).is_ok());
+    message
+        .transition_to(&clock, MessageStatus::Queued)
+        .unwrap();
+    message.transition_to(&clock, MessageStatus::Sent).unwrap();
+    assert!(message
+        .transition_to(&clock, MessageStatus::Delivered)
+        .is_ok());
     assert_eq!(message.status(), MessageStatus::Delivered);
 }
 
 #[test]
-fn test_message_transitions_sent_to_failed() {
+fn test_sent_to_failed_transition() {
+    let clock = MockClock::new();
     let mut message = Message::new(
+        &clock,
         common::test_node_id(1),
-        common::test_node_id(1),
-        vec![1, 2, 3],
+        common::test_node_id(2),
+        b"test payload".to_vec(),
     );
 
-    message.transition_to(MessageStatus::Queued).unwrap();
-    message.transition_to(MessageStatus::Sent).unwrap();
-    assert!(message.transition_to(MessageStatus::Failed).is_ok());
+    message
+        .transition_to(&clock, MessageStatus::Queued)
+        .unwrap();
+    message.transition_to(&clock, MessageStatus::Sent).unwrap();
+    assert!(message.transition_to(&clock, MessageStatus::Failed).is_ok());
     assert_eq!(message.status(), MessageStatus::Failed);
 }
 
 #[test]
-fn test_message_transitions_sent_to_expired() {
+fn test_sent_to_expired_transition() {
+    let clock = MockClock::new();
     let mut message = Message::new(
+        &clock,
         common::test_node_id(1),
-        common::test_node_id(1),
-        vec![1, 2, 3],
+        common::test_node_id(2),
+        b"test payload".to_vec(),
     );
 
-    message.transition_to(MessageStatus::Queued).unwrap();
-    message.transition_to(MessageStatus::Sent).unwrap();
-    assert!(message.transition_to(MessageStatus::Expired).is_ok());
+    message
+        .transition_to(&clock, MessageStatus::Queued)
+        .unwrap();
+    message.transition_to(&clock, MessageStatus::Sent).unwrap();
+    assert!(message
+        .transition_to(&clock, MessageStatus::Expired)
+        .is_ok());
     assert_eq!(message.status(), MessageStatus::Expired);
 }
 
 #[test]
-fn test_illegal_transition_accepted_to_delivered() {
+fn test_invalid_direct_to_terminal_states() {
+    let clock = MockClock::new();
     let mut message = Message::new(
+        &clock,
         common::test_node_id(1),
-        common::test_node_id(1),
-        vec![1, 2, 3],
+        common::test_node_id(2),
+        b"test payload".to_vec(),
     );
 
-    // Cannot jump directly from Accepted to Delivered
-    assert!(message.transition_to(MessageStatus::Delivered).is_err());
+    // Cannot go directly to terminal states
+    assert!(message
+        .transition_to(&clock, MessageStatus::Delivered)
+        .is_err());
 }
 
 #[test]
-fn test_illegal_transition_queued_to_delivered() {
+fn test_invalid_queued_to_delivered_skip() {
+    let clock = MockClock::new();
     let mut message = Message::new(
+        &clock,
         common::test_node_id(1),
-        common::test_node_id(1),
-        vec![1, 2, 3],
+        common::test_node_id(2),
+        b"test payload".to_vec(),
     );
 
-    message.transition_to(MessageStatus::Queued).unwrap();
-    // Cannot jump directly from Queued to Delivered
-    assert!(message.transition_to(MessageStatus::Delivered).is_err());
+    message
+        .transition_to(&clock, MessageStatus::Queued)
+        .unwrap();
+
+    // Cannot skip Sent state
+    assert!(message
+        .transition_to(&clock, MessageStatus::Delivered)
+        .is_err());
 }
 
 #[test]
-fn test_terminal_states_cannot_transition() {
-    let test_terminal = |terminal_status: MessageStatus| {
+fn test_terminal_states_reject_all_transitions() {
+    let clock = MockClock::new();
+    for &terminal_status in &[
+        MessageStatus::Delivered,
+        MessageStatus::Failed,
+        MessageStatus::Expired,
+    ] {
         let mut message = Message::new(
+            &clock,
             common::test_node_id(1),
-            common::test_node_id(1),
-            vec![1, 2, 3],
+            common::test_node_id(2),
+            b"test payload".to_vec(),
         );
 
-        // Move to terminal state
-        message.transition_to(MessageStatus::Queued).unwrap();
-        message.transition_to(MessageStatus::Sent).unwrap();
-        message.transition_to(terminal_status).unwrap();
+        message
+            .transition_to(&clock, MessageStatus::Queued)
+            .unwrap();
+        message.transition_to(&clock, MessageStatus::Sent).unwrap();
+        message.transition_to(&clock, terminal_status).unwrap();
 
-        // Cannot transition from terminal state
-        for status in [
+        // Try all possible transitions from terminal state - all should fail
+        for &status in &[
             MessageStatus::Accepted,
             MessageStatus::Queued,
             MessageStatus::Sent,
@@ -131,53 +176,75 @@ fn test_terminal_states_cannot_transition() {
             MessageStatus::Failed,
             MessageStatus::Expired,
         ] {
-            assert!(message.transition_to(status).is_err());
+            assert!(message.transition_to(&clock, status).is_err());
         }
-    };
-
-    test_terminal(MessageStatus::Delivered);
-    test_terminal(MessageStatus::Failed);
-    test_terminal(MessageStatus::Expired);
+    }
 }
 
 #[test]
-fn test_message_id_uniqueness() {
+fn test_message_ids_are_unique() {
+    let clock = MockClock::new();
     let msg1 = Message::new(
+        &clock,
         common::test_node_id(1),
-        common::test_node_id(1),
-        vec![1, 2, 3],
+        common::test_node_id(2),
+        b"test1".to_vec(),
     );
 
     let msg2 = Message::new(
+        &clock,
         common::test_node_id(1),
-        common::test_node_id(1),
-        vec![1, 2, 3],
+        common::test_node_id(2),
+        b"test2".to_vec(),
     );
 
     assert_ne!(msg1.id(), msg2.id());
 }
 
 #[test]
-fn test_message_timestamp_set_on_creation() {
-    let before = std::time::SystemTime::now();
-    let message = Message::new(
-        common::test_node_id(1),
-        common::test_node_id(1),
-        vec![1, 2, 3],
-    );
-    let after = std::time::SystemTime::now();
+fn test_timestamp_tracking_creation() {
+    let clock = MockClock::new();
+    let before = clock.now();
 
-    assert!(message.created_at() >= before);
-    assert!(message.created_at() <= after);
+    let message = Message::new(
+        &clock,
+        common::test_node_id(1),
+        common::test_node_id(2),
+        b"test".to_vec(),
+    );
+
+    // Created at time should be exactly when we created it
+    assert_eq!(message.created_at(), before);
+
+    // Other timestamps should be None initially
+    assert!(message.queued_at().is_none());
+    assert!(message.sent_at().is_none());
+    assert!(message.delivered_at().is_none());
 }
 
 #[test]
-fn test_message_queue_fifo_ordering() {
+fn test_queue_maintains_fifo_order() {
+    let clock = MockClock::new();
     let mut queue = MessageQueue::new();
 
-    let msg1 = Message::new(common::test_node_id(1), common::test_node_id(1), vec![1]);
-    let msg2 = Message::new(common::test_node_id(1), common::test_node_id(1), vec![2]);
-    let msg3 = Message::new(common::test_node_id(1), common::test_node_id(1), vec![3]);
+    let msg1 = Message::new(
+        &clock,
+        common::test_node_id(1),
+        common::test_node_id(2),
+        b"first".to_vec(),
+    );
+    let msg2 = Message::new(
+        &clock,
+        common::test_node_id(1),
+        common::test_node_id(2),
+        b"second".to_vec(),
+    );
+    let msg3 = Message::new(
+        &clock,
+        common::test_node_id(1),
+        common::test_node_id(2),
+        b"third".to_vec(),
+    );
 
     let id1 = msg1.id();
     let id2 = msg2.id();
@@ -187,72 +254,108 @@ fn test_message_queue_fifo_ordering() {
     queue.enqueue(msg2);
     queue.enqueue(msg3);
 
-    assert_eq!(queue.dequeue().unwrap().id(), id1);
-    assert_eq!(queue.dequeue().unwrap().id(), id2);
-    assert_eq!(queue.dequeue().unwrap().id(), id3);
+    assert_eq!(queue.pending_count(), 3);
+
+    // Should dequeue in FIFO order
+    let dequeued1 = queue.dequeue().unwrap();
+    let dequeued2 = queue.dequeue().unwrap();
+    let dequeued3 = queue.dequeue().unwrap();
+
+    assert_eq!(dequeued1.id(), id1);
+    assert_eq!(dequeued2.id(), id2);
+    assert_eq!(dequeued3.id(), id3);
+
+    assert_eq!(queue.pending_count(), 0);
     assert!(queue.dequeue().is_none());
 }
 
 #[test]
-fn test_message_expiration_after_timeout() {
-    let mut queue = MessageQueue::with_timeout(Duration::from_millis(100));
+fn test_queue_message_expiration() {
+    let mut clock = MockClock::new();
+    let mut queue = MessageQueue::with_timeout(Duration::from_secs(5));
 
     let mut message = Message::new(
+        &clock,
         common::test_node_id(1),
-        common::test_node_id(1),
-        vec![1, 2, 3],
+        common::test_node_id(2),
+        b"test".to_vec(),
     );
-    message.transition_to(MessageStatus::Queued).unwrap();
 
+    message
+        .transition_to(&clock, MessageStatus::Queued)
+        .unwrap();
     queue.enqueue(message);
 
-    // Before timeout
     assert_eq!(queue.pending_count(), 1);
+    assert_eq!(queue.expired_count(), 0);
 
-    // Simulate time passing
-    std::thread::sleep(Duration::from_millis(150));
+    // Advance time beyond timeout and expire
+    clock.advance(Duration::from_secs(10));
+    queue.expire_old_messages(&clock);
 
-    // After timeout, message should be expired
-    queue.expire_old_messages();
     assert_eq!(queue.pending_count(), 0);
     assert_eq!(queue.expired_count(), 1);
 }
 
 #[test]
-fn test_message_cancel_while_queued() {
+fn test_cancel_message_when_accepted() {
+    let clock = MockClock::new();
     let mut message = Message::new(
+        &clock,
         common::test_node_id(1),
-        common::test_node_id(1),
-        vec![1, 2, 3],
+        common::test_node_id(2),
+        b"test".to_vec(),
     );
 
-    message.transition_to(MessageStatus::Queued).unwrap();
-    assert!(message.cancel().is_ok());
+    assert!(message.cancel(&clock).is_ok());
     assert_eq!(message.status(), MessageStatus::Failed);
 }
 
 #[test]
-fn test_message_cannot_cancel_after_sent() {
+fn test_cancel_message_when_queued() {
+    let clock = MockClock::new();
     let mut message = Message::new(
+        &clock,
         common::test_node_id(1),
-        common::test_node_id(1),
-        vec![1, 2, 3],
+        common::test_node_id(2),
+        b"test".to_vec(),
     );
 
-    message.transition_to(MessageStatus::Queued).unwrap();
-    message.transition_to(MessageStatus::Sent).unwrap();
-    assert!(message.cancel().is_err());
+    message
+        .transition_to(&clock, MessageStatus::Queued)
+        .unwrap();
+    assert!(message.cancel(&clock).is_ok());
+    assert_eq!(message.status(), MessageStatus::Failed);
 }
 
 #[test]
-fn test_message_payload_size_limit() {
-    // Maximum payload size should be enforced
-    const MAX_PAYLOAD_SIZE: usize = 64 * 1024; // 64KB
+fn test_cannot_cancel_sent_message() {
+    let clock = MockClock::new();
+    let mut message = Message::new(
+        &clock,
+        common::test_node_id(1),
+        common::test_node_id(2),
+        b"test".to_vec(),
+    );
 
-    let large_payload = vec![0u8; MAX_PAYLOAD_SIZE + 1];
+    message
+        .transition_to(&clock, MessageStatus::Queued)
+        .unwrap();
+    message.transition_to(&clock, MessageStatus::Sent).unwrap();
+
+    assert!(message.cancel(&clock).is_err());
+    assert_eq!(message.status(), MessageStatus::Sent);
+}
+
+#[test]
+fn test_payload_size_limit_enforcement() {
+    let clock = MockClock::new();
+    let large_payload = vec![0u8; 65 * 1024]; // 65KB - exceeds 64KB limit
+
     let result = Message::new_validated(
+        &clock,
         common::test_node_id(1),
-        common::test_node_id(1),
+        common::test_node_id(2),
         large_payload,
     );
 
@@ -264,31 +367,39 @@ fn test_message_payload_size_limit() {
 }
 
 #[test]
-fn test_message_metadata_tracking() {
+fn test_metadata_timestamps_during_transitions() {
+    let mut clock = MockClock::new();
     let mut message = Message::new(
+        &clock,
         common::test_node_id(1),
-        common::test_node_id(1),
-        vec![1, 2, 3],
+        common::test_node_id(2),
+        b"test".to_vec(),
     );
 
-    // Track status transition times
-    let t1 = std::time::SystemTime::now();
-    message.transition_to(MessageStatus::Queued).unwrap();
+    let t1 = clock.now();
 
-    std::thread::sleep(Duration::from_millis(10));
+    // Advance time and transition to Queued
+    clock.advance(Duration::from_millis(10));
+    message
+        .transition_to(&clock, MessageStatus::Queued)
+        .unwrap();
+    let t2 = clock.now();
 
-    let t2 = std::time::SystemTime::now();
-    message.transition_to(MessageStatus::Sent).unwrap();
+    // Advance time and transition to Sent
+    clock.advance(Duration::from_millis(10));
+    message.transition_to(&clock, MessageStatus::Sent).unwrap();
+    let t3 = clock.now();
 
-    std::thread::sleep(Duration::from_millis(10));
+    // Transition to Delivered (no time advance)
+    message
+        .transition_to(&clock, MessageStatus::Delivered)
+        .unwrap();
 
-    let t3 = std::time::SystemTime::now();
-    message.transition_to(MessageStatus::Delivered).unwrap();
-
-    // Verify timestamps are recorded
-    assert!(message.queued_at().unwrap() >= t1);
-    assert!(message.sent_at().unwrap() >= t2);
-    assert!(message.delivered_at().unwrap() >= t3);
+    // Verify timestamps
+    assert_eq!(message.created_at(), t1);
+    assert_eq!(message.queued_at(), Some(t2));
+    assert_eq!(message.sent_at(), Some(t3));
+    assert_eq!(message.delivered_at(), Some(t3));
 }
 
 #[cfg(test)]
@@ -296,46 +407,48 @@ mod property_tests {
     use super::*;
     use proptest::prelude::*;
 
+    prop_compose! {
+        fn message_status_strategy()(status in 0..6u8) -> MessageStatus {
+            match status {
+                0 => MessageStatus::Accepted,
+                1 => MessageStatus::Queued,
+                2 => MessageStatus::Sent,
+                3 => MessageStatus::Delivered,
+                4 => MessageStatus::Failed,
+                _ => MessageStatus::Expired,
+            }
+        }
+    }
+
     proptest! {
         #[test]
-        fn test_status_transitions_are_linear(
-            transitions in prop::collection::vec(0..6u8, 0..20)
+        fn property_transition_consistency(
+            statuses in prop::collection::vec(message_status_strategy(), 1..10)
         ) {
+            let clock = MockClock::new();
             let mut message = Message::new(
+                &clock,
                 common::test_node_id(1),
-                common::test_node_id(1),
-                vec![1, 2, 3],
+                common::test_node_id(2),
+                b"test".to_vec(),
             );
 
-            let statuses = [
-                MessageStatus::Accepted,
-                MessageStatus::Queued,
-                MessageStatus::Sent,
-                MessageStatus::Delivered,
-                MessageStatus::Failed,
-                MessageStatus::Expired,
-            ];
-
-            let mut reached_terminal = false;
-
-            for t in transitions {
-                if reached_terminal {
-                    // No transitions allowed after terminal state
-                    let status = statuses[t as usize % 6];
-                    assert!(message.transition_to(status).is_err());
+            for status in statuses {
+                if message.status().is_terminal() {
+                    // Once terminal, all transitions should fail
+                    assert!(message.transition_to(&clock, status).is_err());
                 } else {
-                    let status = statuses[t as usize % 6];
-
-                    // Check if transition is valid according to state machine
-                    if message.is_valid_transition(status) {
-                        let result = message.transition_to(status);
-                        assert!(result.is_ok());
-                        if status.is_terminal() {
-                            reached_terminal = true;
-                        }
+                    let result = message.transition_to(&clock, status);
+                    if result.is_ok() {
+                        // Valid transition occurred
+                        assert_eq!(message.status(), status);
                     } else {
-                        let result = message.transition_to(status);
-                        assert!(result.is_err());
+                        // Invalid transition was rejected - status unchanged
+                        // Try the transition again to make sure status didn't change
+                        let old_status = message.status();
+                        let result2 = message.transition_to(&clock, status);
+                        assert!(result2.is_err());
+                        assert_eq!(message.status(), old_status);
                     }
                 }
             }

@@ -10,7 +10,7 @@ use std::str::FromStr;
 #[tokio::test]
 async fn test_api_send_rejects_if_name_unresolved() {
     // TDD Contract: API_send_rejects_if_name_unresolved
-    let client = ApiClient::new_test();
+    let client = ApiClient::<bee_core::clock::MockClock>::new_test();
     let _registry = NameRegistry::new();
 
     // Try to send to unresolved name
@@ -229,9 +229,9 @@ mod property_tests {
                     let node_id = common::test_node_id(node_byte);
 
                     if is_register {
-                        let _ = registry.register(name.clone(), node_id);
-                        // If registration succeeded, resolution must work
-                        if registry.resolve(&name).is_some() {
+                        let result = registry.register(name.clone(), node_id);
+                        // If registration succeeded, resolution must work with the new node_id
+                        if result.is_ok() {
                             assert_eq!(registry.resolve(&name), Some(node_id));
                         }
                     } else {

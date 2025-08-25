@@ -11,11 +11,24 @@ struct TestServer {
 }
 
 async fn start_test_server() -> TestServer {
-    // For now, return a mock server address
-    // In a real implementation, we'd spawn an actual server
-    TestServer {
-        addr: "127.0.0.1:8080".parse().unwrap(),
-    }
+    use bee_api::server::ApiServer;
+    use bee_api::ApiConfig;
+    use std::net::TcpListener;
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    drop(listener);
+
+    let config = ApiConfig::new();
+    let server = ApiServer::new(config, addr);
+
+    tokio::spawn(async move {
+        server.run().await;
+    });
+
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    TestServer { addr }
 }
 
 #[tokio::test]

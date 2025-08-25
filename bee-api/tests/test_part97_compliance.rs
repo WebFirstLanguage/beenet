@@ -173,8 +173,7 @@ fn test_id_beacon_required_in_part97() {
 #[tokio::test]
 async fn test_plain_text_enforcement_in_part97() {
     let config = ApiConfig::new_radio_profile();
-    let client = ApiClient::with_config(config);
-
+    let client = ApiClient::<bee_core::clock::MockClock>::with_config(config);
     // Encrypted payload should be rejected
     let encrypted_payload = vec![0xFF, 0xFE, 0xFD]; // Obviously encrypted
     let result = client.validate_payload_for_part97(&encrypted_payload).await;
@@ -277,13 +276,14 @@ fn test_periodic_id_beacon_tracking() {
     admin.set_callsign(callsign).unwrap();
 
     // Check if ID beacon is due
-    admin.mark_id_beacon_sent().unwrap();
-    assert!(!admin.is_id_beacon_due());
+    let clock = bee_core::clock::MockClock::new();
+    admin.mark_id_beacon_sent(&clock).unwrap();
+    assert!(!admin.is_id_beacon_due(&clock));
 
     // Simulate time passing (would use virtual clock in real implementation)
     // For testing, manually mark as due
     admin.test_force_id_beacon_due();
-    assert!(admin.is_id_beacon_due());
+    assert!(admin.is_id_beacon_due(&clock));
 }
 
 #[cfg(test)]

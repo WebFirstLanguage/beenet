@@ -1,9 +1,10 @@
 use crate::error::ApiError;
+use bee_core::clock::Clock;
 use bee_core::identity::NodeId;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 static MESSAGE_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 
@@ -48,28 +49,29 @@ pub struct Message {
     #[allow(dead_code)]
     payload: Vec<u8>,
     status: MessageStatus,
-    created_at: SystemTime,
-    queued_at: Option<SystemTime>,
-    sent_at: Option<SystemTime>,
-    delivered_at: Option<SystemTime>,
+    created_at: Duration,
+    queued_at: Option<Duration>,
+    sent_at: Option<Duration>,
+    delivered_at: Option<Duration>,
 }
 
 impl Message {
-    pub fn new(source: NodeId, destination: NodeId, payload: Vec<u8>) -> Self {
+    pub fn new<C: Clock>(clock: &C, source: NodeId, destination: NodeId, payload: Vec<u8>) -> Self {
         Self {
             id: MessageId::new(),
             source,
             destination,
             payload,
             status: MessageStatus::Accepted,
-            created_at: SystemTime::now(),
+            created_at: clock.now(),
             queued_at: None,
             sent_at: None,
             delivered_at: None,
         }
     }
 
-    pub fn new_validated(
+    pub fn new_validated<C: Clock>(
+        clock: &C,
         source: NodeId,
         destination: NodeId,
         payload: Vec<u8>,
@@ -83,7 +85,7 @@ impl Message {
             });
         }
 
-        Ok(Self::new(source, destination, payload))
+        Ok(Self::new(clock, source, destination, payload))
     }
 
     pub fn id(&self) -> MessageId {
@@ -94,23 +96,27 @@ impl Message {
         self.status
     }
 
-    pub fn created_at(&self) -> SystemTime {
+    pub fn created_at(&self) -> Duration {
         self.created_at
     }
 
-    pub fn queued_at(&self) -> Option<SystemTime> {
+    pub fn queued_at(&self) -> Option<Duration> {
         self.queued_at
     }
 
-    pub fn sent_at(&self) -> Option<SystemTime> {
+    pub fn sent_at(&self) -> Option<Duration> {
         self.sent_at
     }
 
-    pub fn delivered_at(&self) -> Option<SystemTime> {
+    pub fn delivered_at(&self) -> Option<Duration> {
         self.delivered_at
     }
 
-    pub fn transition_to(&mut self, new_status: MessageStatus) -> Result<(), ApiError> {
+    pub fn transition_to<C: Clock>(
+        &mut self,
+        clock: &C,
+        new_status: MessageStatus,
+    ) -> Result<(), ApiError> {
         if !self.is_valid_transition(new_status) {
             return Err(ApiError::InvalidStatusTransition);
         }
@@ -119,9 +125,9 @@ impl Message {
 
         // Update timestamps
         match new_status {
-            MessageStatus::Queued => self.queued_at = Some(SystemTime::now()),
-            MessageStatus::Sent => self.sent_at = Some(SystemTime::now()),
-            MessageStatus::Delivered => self.delivered_at = Some(SystemTime::now()),
+            MessageStatus::Queued => self.queued_at = Some(clock.now()),
+            MessageStatus::Sent => self.sent_at = Some(clock.now()),
+            MessageStatus::Delivered => self.delivered_at = Some(clock.now()),
             _ => {}
         }
 
@@ -135,19 +141,20 @@ impl Message {
 
         match (self.status, new_status) {
             (MessageStatus::Accepted, MessageStatus::Queued) => true,
+            (MessageStatus::Accepted, MessageStatus::Failed) => true, // For cancellation
             (MessageStatus::Queued, MessageStatus::Sent) => true,
+            (MessageStatus::Queued, MessageStatus::Failed) => true, // For cancellation
             (MessageStatus::Sent, MessageStatus::Delivered) => true,
             (MessageStatus::Sent, MessageStatus::Failed) => true,
             (MessageStatus::Sent, MessageStatus::Expired) => true,
-            (MessageStatus::Queued, MessageStatus::Failed) => true, // For cancellation
             _ => false,
         }
     }
 
-    pub fn cancel(&mut self) -> Result<(), ApiError> {
+    pub fn cancel<C: Clock>(&mut self, clock: &C) -> Result<(), ApiError> {
         match self.status {
             MessageStatus::Accepted | MessageStatus::Queued => {
-                self.transition_to(MessageStatus::Failed)
+                self.transition_to(clock, MessageStatus::Failed)
             }
             _ => Err(ApiError::CannotCancelMessage(format!("{:?}", self.status))),
         }
@@ -193,18 +200,18 @@ impl MessageQueue {
         self.expired.len()
     }
 
-    pub fn expire_old_messages(&mut self) {
-        let now = SystemTime::now();
+    pub fn expire_old_messages<C: Clock>(&mut self, clock: &C) {
+        let now = clock.now();
         let mut i = 0;
 
         while i < self.messages.len() {
-            let age = now
-                .duration_since(self.messages[i].created_at)
-                .unwrap_or(Duration::ZERO);
-
+            let reference_time = self.messages[i]
+                .queued_at
+                .unwrap_or(self.messages[i].created_at);
+            let age = now.saturating_sub(reference_time);
             if age > self.timeout {
                 let mut msg = self.messages.remove(i).unwrap();
-                msg.status = MessageStatus::Expired;
+                let _ = msg.transition_to(clock, MessageStatus::Expired);
                 self.expired.push(msg);
             } else {
                 i += 1;
