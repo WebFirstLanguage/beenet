@@ -12,13 +12,13 @@ use std::str::FromStr;
 fn test_api_part97_default_is_enabled_on_radio_profiles() {
     // TDD Contract: API_part97_default_is_enabled_on_radio_profiles
     let config = ApiConfig::new_radio_profile();
-    
+
     assert_eq!(config.regulatory_mode(), RegulatoryMode::Part97Enabled);
     assert!(config.is_part97_enabled());
-    
+
     // Verify encryption is disabled
     assert!(!config.encryption_allowed());
-    
+
     // Verify callsign is required
     assert!(config.callsign_required());
 }
@@ -27,16 +27,16 @@ fn test_api_part97_default_is_enabled_on_radio_profiles() {
 fn test_part97_mode_requires_callsign() {
     let mut config = ApiConfig::new_radio_profile();
     let mut admin = AdminApi::new(&mut config);
-    
+
     // Part 97 enabled by default, must have callsign
     let result = admin.validate_part97_requirements();
     assert!(result.is_err());
     assert!(matches!(result.unwrap_err(), ApiError::CallsignRequired));
-    
+
     // Set callsign
     let callsign = Callsign::from_str("K7TEST").unwrap();
     admin.set_callsign(callsign).unwrap();
-    
+
     // Now validation should pass
     assert!(admin.validate_part97_requirements().is_ok());
 }
@@ -45,31 +45,38 @@ fn test_part97_mode_requires_callsign() {
 fn test_part97_mode_disables_encryption() {
     let mut config = ApiConfig::new_radio_profile();
     let mut admin = AdminApi::new(&mut config);
-    
+
     // Set callsign to satisfy requirements
     let callsign = Callsign::from_str("K7TEST").unwrap();
     admin.set_callsign(callsign).unwrap();
-    
+
     // Try to enable encryption - should fail
     let result = admin.enable_encryption();
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), ApiError::EncryptionNotAllowedInPart97));
+    assert!(matches!(
+        result.unwrap_err(),
+        ApiError::EncryptionNotAllowedInPart97
+    ));
 }
 
 #[test]
 fn test_toggle_part97_mode() {
     let mut config = ApiConfig::new();
     let mut admin = AdminApi::new(&mut config);
-    
+
     // Start with Part 97 disabled (non-radio profile)
     assert_eq!(admin.get_regulatory_mode(), RegulatoryMode::Part97Disabled);
-    
+
     // Enable Part 97
-    admin.set_regulatory_mode(RegulatoryMode::Part97Enabled).unwrap();
+    admin
+        .set_regulatory_mode(RegulatoryMode::Part97Enabled)
+        .unwrap();
     assert_eq!(admin.get_regulatory_mode(), RegulatoryMode::Part97Enabled);
-    
+
     // Disable Part 97
-    admin.set_regulatory_mode(RegulatoryMode::Part97Disabled).unwrap();
+    admin
+        .set_regulatory_mode(RegulatoryMode::Part97Disabled)
+        .unwrap();
     assert_eq!(admin.get_regulatory_mode(), RegulatoryMode::Part97Disabled);
 }
 
@@ -77,15 +84,15 @@ fn test_toggle_part97_mode() {
 fn test_callsign_binding_with_beename() {
     let mut config = ApiConfig::new_radio_profile();
     let mut admin = AdminApi::new(&mut config);
-    
+
     let callsign = Callsign::from_str("K7TEST").unwrap();
     let beename = BeeName::from_str("test-node").unwrap();
     let node_id = common::test_node_id(1);
-    
+
     // Create regulatory binding
     let binding = RegulatoryBinding::new(callsign.clone(), beename.clone(), node_id);
     admin.set_regulatory_binding(binding.clone()).unwrap();
-    
+
     // Verify binding is stored
     assert_eq!(admin.get_callsign(), Some(&callsign));
     assert_eq!(admin.get_regulatory_binding(), Some(&binding));
@@ -95,40 +102,49 @@ fn test_callsign_binding_with_beename() {
 fn test_id_beacon_required_in_part97() {
     let mut config = ApiConfig::new_radio_profile();
     let mut admin = AdminApi::new(&mut config);
-    
+
     let callsign = Callsign::from_str("K7TEST").unwrap();
     admin.set_callsign(callsign).unwrap();
-    
+
     // Check ID beacon requirements
     assert!(admin.id_beacon_required());
-    assert_eq!(admin.id_beacon_interval(), std::time::Duration::from_secs(600)); // 10 minutes
+    assert_eq!(
+        admin.id_beacon_interval(),
+        std::time::Duration::from_secs(600)
+    ); // 10 minutes
 }
 
 #[tokio::test]
 async fn test_plain_text_enforcement_in_part97() {
     let config = ApiConfig::new_radio_profile();
     let client = ApiClient::with_config(config);
-    
+
     // Encrypted payload should be rejected
     let encrypted_payload = vec![0xFF, 0xFE, 0xFD]; // Obviously encrypted
     let result = client.validate_payload_for_part97(&encrypted_payload).await;
-    
+
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), ApiError::EncryptedPayloadInPart97));
-    
+    assert!(matches!(
+        result.unwrap_err(),
+        ApiError::EncryptedPayloadInPart97
+    ));
+
     // Plain text should be accepted
     let plain_text = b"Hello, this is plain text".to_vec();
-    assert!(client.validate_payload_for_part97(&plain_text).await.is_ok());
+    assert!(client
+        .validate_payload_for_part97(&plain_text)
+        .await
+        .is_ok());
 }
 
 #[test]
 fn test_non_radio_profile_allows_encryption() {
     let mut config = ApiConfig::new(); // Non-radio profile
     let mut admin = AdminApi::new(&mut config);
-    
+
     // Part 97 disabled by default for non-radio
     assert_eq!(admin.get_regulatory_mode(), RegulatoryMode::Part97Disabled);
-    
+
     // Encryption should be allowed
     assert!(admin.enable_encryption().is_ok());
     assert!(admin.is_encryption_enabled());
@@ -138,14 +154,16 @@ fn test_non_radio_profile_allows_encryption() {
 fn test_switching_to_part97_disables_existing_encryption() {
     let mut config = ApiConfig::new(); // Non-radio profile
     let mut admin = AdminApi::new(&mut config);
-    
+
     // Enable encryption
     admin.enable_encryption().unwrap();
     assert!(admin.is_encryption_enabled());
-    
+
     // Switch to Part 97 mode
-    admin.set_regulatory_mode(RegulatoryMode::Part97Enabled).unwrap();
-    
+    admin
+        .set_regulatory_mode(RegulatoryMode::Part97Enabled)
+        .unwrap();
+
     // Encryption should be automatically disabled
     assert!(!admin.is_encryption_enabled());
 }
@@ -154,12 +172,18 @@ fn test_switching_to_part97_disables_existing_encryption() {
 fn test_callsign_validation_in_api() {
     let mut config = ApiConfig::new_radio_profile();
     let mut admin = AdminApi::new(&mut config);
-    
+
     // Valid callsigns
-    assert!(admin.set_callsign(Callsign::from_str("K7TEST").unwrap()).is_ok());
-    assert!(admin.set_callsign(Callsign::from_str("W1AW").unwrap()).is_ok());
-    assert!(admin.set_callsign(Callsign::from_str("VE3ABC").unwrap()).is_ok());
-    
+    assert!(admin
+        .set_callsign(Callsign::from_str("K7TEST").unwrap())
+        .is_ok());
+    assert!(admin
+        .set_callsign(Callsign::from_str("W1AW").unwrap())
+        .is_ok());
+    assert!(admin
+        .set_callsign(Callsign::from_str("VE3ABC").unwrap())
+        .is_ok());
+
     // Invalid callsigns should have been rejected by Callsign::from_str
     assert!(Callsign::from_str("invalid!").is_err());
     assert!(Callsign::from_str("").is_err());
@@ -170,14 +194,14 @@ fn test_callsign_validation_in_api() {
 fn test_id_beacon_end_of_transmission() {
     let mut config = ApiConfig::new_radio_profile();
     let mut admin = AdminApi::new(&mut config);
-    
+
     let callsign = Callsign::from_str("K7TEST").unwrap();
     admin.set_callsign(callsign).unwrap();
-    
+
     // Start transmission
     admin.mark_transmission_start().unwrap();
     assert!(admin.is_transmitting());
-    
+
     // End transmission - should trigger ID beacon requirement
     let beacon_required = admin.mark_transmission_end().unwrap();
     assert!(beacon_required);
@@ -188,14 +212,14 @@ fn test_id_beacon_end_of_transmission() {
 fn test_periodic_id_beacon_tracking() {
     let mut config = ApiConfig::new_radio_profile();
     let mut admin = AdminApi::new(&mut config);
-    
+
     let callsign = Callsign::from_str("K7TEST").unwrap();
     admin.set_callsign(callsign).unwrap();
-    
+
     // Check if ID beacon is due
     admin.mark_id_beacon_sent().unwrap();
     assert!(!admin.is_id_beacon_due());
-    
+
     // Simulate time passing (would use virtual clock in real implementation)
     // For testing, manually mark as due
     admin.test_force_id_beacon_due();
@@ -206,7 +230,7 @@ fn test_periodic_id_beacon_tracking() {
 mod property_tests {
     use super::*;
     use proptest::prelude::*;
-    
+
     proptest! {
         #[test]
         fn test_part97_mode_invariants(
@@ -216,21 +240,21 @@ mod property_tests {
         ) {
             let mut config = ApiConfig::new();
             let mut admin = AdminApi::new(&mut config);
-            
+
             if enable_part97 {
                 admin.set_regulatory_mode(RegulatoryMode::Part97Enabled).unwrap();
-                
+
                 if set_callsign {
                     let callsign = Callsign::from_str("K7TEST").unwrap();
                     admin.set_callsign(callsign).unwrap();
                 }
-                
+
                 // Invariant: Part 97 mode never allows encryption
                 if enable_encryption {
                     assert!(admin.enable_encryption().is_err());
                 }
                 assert!(!admin.is_encryption_enabled());
-                
+
                 // Invariant: Part 97 mode requires callsign
                 if !set_callsign {
                     assert!(admin.validate_part97_requirements().is_err());
@@ -239,13 +263,13 @@ mod property_tests {
                 }
             } else {
                 admin.set_regulatory_mode(RegulatoryMode::Part97Disabled).unwrap();
-                
+
                 // Non-Part 97 mode allows encryption
                 if enable_encryption {
                     assert!(admin.enable_encryption().is_ok());
                     assert!(admin.is_encryption_enabled());
                 }
-                
+
                 // Callsign not required
                 assert!(admin.validate_part97_requirements().is_ok());
             }

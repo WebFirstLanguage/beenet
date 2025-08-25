@@ -1,4 +1,4 @@
-use crate::{ApiConfig, message::MessageQueue, registry::NameRegistry};
+use crate::{message::MessageQueue, registry::NameRegistry, ApiConfig};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
