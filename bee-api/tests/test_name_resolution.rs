@@ -10,7 +10,7 @@ use std::str::FromStr;
 #[tokio::test]
 async fn test_api_send_rejects_if_name_unresolved() {
     // TDD Contract: API_send_rejects_if_name_unresolved
-    let client = ApiClient::new_test();
+    let client = ApiClient::<bee_core::clock::MockClock>::new_test();
     let _registry = NameRegistry::new();
 
     // Try to send to unresolved name

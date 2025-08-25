@@ -1,4 +1,5 @@
 use crate::{ApiClient, ApiConfig};
+use bee_core::clock::MockClock;
 use serde_json::json;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -7,7 +8,7 @@ use tokio::sync::RwLock;
 use warp::{Filter, Reply};
 
 pub struct ApiServer {
-    client: ApiClient,
+    client: ApiClient<MockClock>,
     addr: SocketAddr,
     cancelled_messages: Arc<RwLock<HashMap<String, bool>>>,
     message_statuses: Arc<RwLock<HashMap<String, String>>>,
@@ -16,7 +17,7 @@ pub struct ApiServer {
 impl ApiServer {
     pub fn new(config: ApiConfig, addr: SocketAddr) -> Self {
         Self {
-            client: ApiClient::with_config(config),
+            client: ApiClient::<MockClock>::with_config(config),
             addr,
             cancelled_messages: Arc::new(RwLock::new(HashMap::new())),
             message_statuses: Arc::new(RwLock::new(HashMap::new())),
@@ -140,8 +141,8 @@ impl ApiServer {
 }
 
 fn with_client(
-    client: ApiClient,
-) -> impl Filter<Extract = (ApiClient,), Error = std::convert::Infallible> + Clone {
+    client: ApiClient<MockClock>,
+) -> impl Filter<Extract = (ApiClient<MockClock>,), Error = std::convert::Infallible> + Clone {
     warp::any().map(move || client.clone())
 }
 
@@ -161,7 +162,7 @@ fn with_message_statuses(
 
 async fn handle_send_message(
     body: serde_json::Value,
-    _client: ApiClient,
+    _client: ApiClient<MockClock>,
     message_statuses: Arc<RwLock<HashMap<String, String>>>,
 ) -> Result<impl Reply, warp::Rejection> {
     let source = body.get("source").and_then(|s| s.as_str());
@@ -219,12 +220,12 @@ async fn handle_send_message(
 
 async fn handle_list_messages(
     _query: HashMap<String, String>,
-    _client: ApiClient,
+    _client: ApiClient<MockClock>,
 ) -> Result<impl Reply, warp::Rejection> {
     Ok(warp::reply::json(&json!([])))
 }
 
-async fn handle_get_message(id: String, _client: ApiClient) -> Result<impl Reply, warp::Rejection> {
+async fn handle_get_message(id: String, _client: ApiClient<MockClock>) -> Result<impl Reply, warp::Rejection> {
     Ok(warp::reply::json(&json!({
         "id": id,
         "status": "queued",
@@ -240,7 +241,7 @@ async fn handle_get_message(id: String, _client: ApiClient) -> Result<impl Reply
 
 async fn handle_cancel_message(
     id: String,
-    _client: ApiClient,
+    _client: ApiClient<MockClock>,
     cancelled_messages: Arc<RwLock<HashMap<String, bool>>>,
 ) -> Result<impl Reply, warp::Rejection> {
     cancelled_messages.write().await.insert(id.clone(), true);
@@ -252,7 +253,7 @@ async fn handle_cancel_message(
 
 async fn handle_get_message_status(
     id: String,
-    _client: ApiClient,
+    _client: ApiClient<MockClock>,
     cancelled_messages: Arc<RwLock<HashMap<String, bool>>>,
     message_statuses: Arc<RwLock<HashMap<String, String>>>,
 ) -> Result<impl Reply, warp::Rejection> {
@@ -272,7 +273,7 @@ async fn handle_get_message_status(
 
 async fn handle_register_name(
     _body: serde_json::Value,
-    _client: ApiClient,
+    _client: ApiClient<MockClock>,
 ) -> Result<impl Reply, warp::Rejection> {
     Ok(warp::reply::with_status(
         warp::reply::json(&json!({"status": "registered"})),
@@ -280,20 +281,20 @@ async fn handle_register_name(
     ))
 }
 
-async fn handle_list_names(_client: ApiClient) -> Result<impl Reply, warp::Rejection> {
+async fn handle_list_names(_client: ApiClient<MockClock>) -> Result<impl Reply, warp::Rejection> {
     Ok(warp::reply::json(&json!([])))
 }
 
 async fn handle_resolve_name(
     _name: String,
-    _client: ApiClient,
+    _client: ApiClient<MockClock>,
 ) -> Result<impl Reply, warp::Rejection> {
     Ok(warp::reply::json(
         &json!({"beename": "test", "node_id": "0101010101010101010101010101010101010101010101010101010101010101"}),
     ))
 }
 
-async fn handle_get_config(_client: ApiClient) -> Result<impl Reply, warp::Rejection> {
+async fn handle_get_config(_client: ApiClient<MockClock>) -> Result<impl Reply, warp::Rejection> {
     Ok(warp::reply::json(&json!({
         "regulatory_mode": "part97_disabled",
         "encryption_enabled": true
@@ -302,7 +303,7 @@ async fn handle_get_config(_client: ApiClient) -> Result<impl Reply, warp::Rejec
 
 async fn handle_update_config(
     body: serde_json::Value,
-    _client: ApiClient,
+    _client: ApiClient<MockClock>,
 ) -> Result<impl Reply, warp::Rejection> {
     let mut config = json!({
         "regulatory_mode": "part97_disabled",
@@ -319,7 +320,7 @@ async fn handle_update_config(
     Ok(warp::reply::json(&config))
 }
 
-async fn handle_get_part97_status(_client: ApiClient) -> Result<impl Reply, warp::Rejection> {
+async fn handle_get_part97_status(_client: ApiClient<MockClock>) -> Result<impl Reply, warp::Rejection> {
     Ok(warp::reply::json(&json!({
         "enabled": true,
         "encryption_allowed": false,

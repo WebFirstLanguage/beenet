@@ -1,11 +1,12 @@
 use crate::error::ApiError;
 use crate::ApiConfig;
 use bee_core::callsign::{Callsign, RegulatoryBinding};
+use bee_core::clock::Clock;
 use bee_core::identity::NodeId;
 use bee_core::name::BeeName;
 use std::collections::HashMap;
 use std::str::FromStr;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RegulatoryMode {
@@ -18,7 +19,7 @@ pub struct AdminApi<'a> {
     name_bindings: HashMap<BeeName, NodeId>,
     regulatory_binding: Option<RegulatoryBinding>,
     transmitting: bool,
-    last_id_beacon: Option<SystemTime>,
+    last_id_beacon: Option<Duration>,
     force_id_beacon_due: bool,
 }
 
@@ -114,21 +115,19 @@ impl<'a> AdminApi<'a> {
         self.transmitting
     }
 
-    pub fn mark_id_beacon_sent(&mut self) -> Result<(), ApiError> {
-        self.last_id_beacon = Some(SystemTime::now());
+    pub fn mark_id_beacon_sent<C: Clock>(&mut self, clock: &C) -> Result<(), ApiError> {
+        self.last_id_beacon = Some(clock.now());
         self.force_id_beacon_due = false;
         Ok(())
     }
 
-    pub fn is_id_beacon_due(&self) -> bool {
+    pub fn is_id_beacon_due<C: Clock>(&self, clock: &C) -> bool {
         if self.force_id_beacon_due {
             return true;
         }
 
         if let Some(last) = self.last_id_beacon {
-            let elapsed = SystemTime::now()
-                .duration_since(last)
-                .unwrap_or(Duration::ZERO);
+            let elapsed = clock.now().saturating_sub(last);
             elapsed >= self.id_beacon_interval()
         } else {
             true
