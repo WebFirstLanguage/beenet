@@ -9,7 +9,6 @@ pub mod state;
 pub use error::ApiError;
 pub use message::{Message, MessageId, MessageQueue, MessageStatus};
 
-
 use bee_core::identity::NodeId;
 use bee_core::name::BeeName;
 use std::sync::Arc;
@@ -55,11 +54,11 @@ impl ApiClient {
         // Create and queue message
         let mut message = message::Message::new(source, dest_node, payload);
         message.transition_to(message::MessageStatus::Queued)?;
-        
+
         let id = message.id();
         let mut queue = self.queue.write().await;
         queue.enqueue(message);
-        
+
         Ok(id)
     }
 
@@ -71,10 +70,11 @@ impl ApiClient {
 
         // Check if payload appears to be encrypted
         // Simple heuristic: high entropy or non-printable bytes
-        let non_printable_count = payload.iter()
+        let non_printable_count = payload
+            .iter()
             .filter(|&&b| !(0x20..=0x7E).contains(&b))
             .count();
-        
+
         if non_printable_count > payload.len() / 4 {
             return Err(ApiError::EncryptedPayloadInPart97);
         }

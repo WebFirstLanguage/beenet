@@ -48,13 +48,18 @@ impl<'a> AdminApi<'a> {
     }
 
     pub fn set_regulatory_mode(&mut self, mode: RegulatoryMode) -> Result<(), ApiError> {
+        // If enabling Part 97, validate that a callsign is set
+        if mode == RegulatoryMode::Part97Enabled && self.config.callsign.is_none() {
+            return Err(ApiError::CallsignRequired);
+        }
+
         self.config.regulatory_mode = mode;
-        
+
         // If enabling Part 97, disable encryption
         if mode == RegulatoryMode::Part97Enabled {
             self.config.encryption_enabled = false;
         }
-        
+
         Ok(())
     }
 
@@ -124,7 +129,7 @@ impl<'a> AdminApi<'a> {
         if self.force_id_beacon_due {
             return true;
         }
-        
+
         if let Some(last) = self.last_id_beacon {
             let elapsed = SystemTime::now()
                 .duration_since(last)
@@ -179,7 +184,9 @@ impl<'a> AdminApi<'a> {
 
     pub fn set_max_queue_size(&mut self, size: usize) -> Result<(), ApiError> {
         if size == 0 {
-            return Err(ApiError::InvalidConfiguration("Queue size must be > 0".into()));
+            return Err(ApiError::InvalidConfiguration(
+                "Queue size must be > 0".into(),
+            ));
         }
         self.config.max_queue_size = size;
         Ok(())
@@ -187,17 +194,18 @@ impl<'a> AdminApi<'a> {
 
     pub fn export_configuration(&self) -> HashMap<String, serde_json::Value> {
         use serde_json::json;
-        
+
         let mut config = HashMap::new();
-        
+
         config.insert(
             "callsign".to_string(),
-            self.config.callsign
+            self.config
+                .callsign
                 .as_ref()
                 .map(|c| json!(c.as_str()))
                 .unwrap_or(json!(null)),
         );
-        
+
         config.insert(
             "regulatory_mode".to_string(),
             json!(match self.config.regulatory_mode {
@@ -205,46 +213,53 @@ impl<'a> AdminApi<'a> {
                 RegulatoryMode::Part97Disabled => "part97_disabled",
             }),
         );
-        
+
         config.insert(
             "encryption_enabled".to_string(),
             json!(self.config.encryption_enabled),
         );
-        
+
         config.insert(
             "swarm_id".to_string(),
             json!(hex::encode(self.config.swarm_id)),
         );
-        
+
         config
     }
 
-    pub fn import_configuration(&mut self, config: HashMap<String, serde_json::Value>) -> Result<(), ApiError> {
+    pub fn import_configuration(
+        &mut self,
+        config: HashMap<String, serde_json::Value>,
+    ) -> Result<(), ApiError> {
         if let Some(callsign_val) = config.get("callsign") {
             if let Some(callsign_str) = callsign_val.as_str() {
                 self.config.callsign = Some(
                     Callsign::from_str(callsign_str)
-                        .map_err(|e| ApiError::InvalidConfiguration(e.to_string()))?
+                        .map_err(|e| ApiError::InvalidConfiguration(e.to_string()))?,
                 );
             }
         }
-        
+
         if let Some(mode_val) = config.get("regulatory_mode") {
             if let Some(mode_str) = mode_val.as_str() {
                 self.config.regulatory_mode = match mode_str {
                     "part97_enabled" => RegulatoryMode::Part97Enabled,
                     "part97_disabled" => RegulatoryMode::Part97Disabled,
-                    _ => return Err(ApiError::InvalidConfiguration("Invalid regulatory mode".into())),
+                    _ => {
+                        return Err(ApiError::InvalidConfiguration(
+                            "Invalid regulatory mode".into(),
+                        ))
+                    }
                 };
             }
         }
-        
+
         if let Some(enc_val) = config.get("encryption_enabled") {
             if let Some(enabled) = enc_val.as_bool() {
                 self.config.encryption_enabled = enabled;
             }
         }
-        
+
         Ok(())
     }
 }

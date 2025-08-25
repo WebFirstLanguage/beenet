@@ -75,7 +75,7 @@ impl Message {
         payload: Vec<u8>,
     ) -> Result<Self, ApiError> {
         const MAX_PAYLOAD_SIZE: usize = 64 * 1024;
-        
+
         if payload.len() > MAX_PAYLOAD_SIZE {
             return Err(ApiError::PayloadTooLarge {
                 max: MAX_PAYLOAD_SIZE,
@@ -196,11 +196,12 @@ impl MessageQueue {
     pub fn expire_old_messages(&mut self) {
         let now = SystemTime::now();
         let mut i = 0;
-        
+
         while i < self.messages.len() {
-            let age = now.duration_since(self.messages[i].created_at)
+            let age = now
+                .duration_since(self.messages[i].created_at)
                 .unwrap_or(Duration::ZERO);
-            
+
             if age > self.timeout {
                 let mut msg = self.messages.remove(i).unwrap();
                 msg.status = MessageStatus::Expired;

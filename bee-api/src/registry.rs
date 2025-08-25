@@ -59,19 +59,17 @@ impl NameRegistry {
 
         // Register the name
         self.name_to_node.insert(name.clone(), node_id);
-        
+
         // Update reverse mapping
-        self.node_to_names
-            .entry(node_id)
-            .or_default()
-            .push(name);
+        self.node_to_names.entry(node_id).or_default().push(name);
 
         Ok(())
     }
 
     pub fn unregister(&mut self, name: &BeeName) -> Result<(), RegistryError> {
         // Remove from name -> node mapping
-        let node_id = self.name_to_node
+        let node_id = self
+            .name_to_node
             .remove(name)
             .ok_or(RegistryError::NameNotFound)?;
 
