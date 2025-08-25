@@ -1,17 +1,18 @@
 use crate::{ApiClient, ApiConfig};
+use bee_core::clock::MockClock;
 use std::net::SocketAddr;
 use warp::Filter;
 
 pub struct ApiServer {
     #[allow(dead_code)]
-    client: ApiClient,
+    client: ApiClient<MockClock>,
     addr: SocketAddr,
 }
 
 impl ApiServer {
     pub fn new(config: ApiConfig, addr: SocketAddr) -> Self {
         Self {
-            client: ApiClient::with_config(config),
+            client: ApiClient::<MockClock>::with_config(config),
             addr,
         }
     }

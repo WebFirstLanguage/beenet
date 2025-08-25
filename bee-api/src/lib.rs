@@ -10,32 +10,39 @@ pub use error::ApiError;
 pub use message::{Message, MessageId, MessageQueue, MessageStatus};
 
 
+use bee_core::clock::{Clock, MockClock};
 use bee_core::identity::NodeId;
 use bee_core::name::BeeName;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// Main API client for interacting with the Beenet local API
-pub struct ApiClient {
+pub struct ApiClient<C: Clock = MockClock> {
     config: Arc<RwLock<ApiConfig>>,
     registry: Arc<RwLock<registry::NameRegistry>>,
     queue: Arc<RwLock<message::MessageQueue>>,
+    clock: C,
 }
 
-impl ApiClient {
-    pub fn new() -> Self {
-        Self::with_config(ApiConfig::new())
+impl<C: Clock> ApiClient<C> {
+    pub fn new() -> ApiClient<MockClock> {
+        ApiClient::<MockClock>::with_config(ApiConfig::new())
     }
 
-    pub fn new_test() -> Self {
-        Self::with_config(ApiConfig::new())
+    pub fn new_test() -> ApiClient<MockClock> {
+        ApiClient::<MockClock>::with_config(ApiConfig::new())
     }
 
-    pub fn with_config(config: ApiConfig) -> Self {
-        Self {
+    pub fn with_config(config: ApiConfig) -> ApiClient<MockClock> {
+        ApiClient::<MockClock>::with_config_and_clock(config, MockClock::new())
+    }
+
+    pub fn with_config_and_clock(config: ApiConfig, clock: C) -> ApiClient<C> {
+        ApiClient {
             config: Arc::new(RwLock::new(config)),
             registry: Arc::new(RwLock::new(registry::NameRegistry::new())),
             queue: Arc::new(RwLock::new(message::MessageQueue::new())),
+            clock,
         }
     }
 
@@ -53,8 +60,8 @@ impl ApiClient {
         drop(registry);
 
         // Create and queue message
-        let mut message = message::Message::new(source, dest_node, payload);
-        message.transition_to(message::MessageStatus::Queued)?;
+        let mut message = message::Message::new(&self.clock, source, dest_node, payload);
+        message.transition_to(&self.clock, message::MessageStatus::Queued)?;
         
         let id = message.id();
         let mut queue = self.queue.write().await;
@@ -83,7 +90,7 @@ impl ApiClient {
     }
 }
 
-impl Default for ApiClient {
+impl Default for ApiClient<MockClock> {
     fn default() -> Self {
         Self::new()
     }
