@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(cargo fmt:*)",
-      "Bash(cargo:*)"
+      "Bash(cargo:*)",
+      "Bash(grep:*)",
+      "Bash(sed:*)",
+      "Bash(for:*)",
+      "Bash(do)",
+      "Bash(done)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

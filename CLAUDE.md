@@ -86,3 +86,41 @@ The project will be organized as Rust workspaces:
 ## Phase-Based Development
 
 Currently in Phase 0: Foundational test harness and project scaffolding. See `Docs/phase.md` for the complete 12-phase TDD plan.
+
+## Development Documentation
+
+### Development Diary Requirement
+
+**MANDATORY**: Maintain a development diary for each phase of work in `Docs/phase{N}_dev_diary.md` format.
+
+Each dev diary MUST include:
+
+1. **Header Information**
+   - Date of work
+   - Developer identification
+   - Phase overview and objectives
+
+2. **TDD Documentation**
+   - Red Phase: Tests written before implementation
+   - Green Phase: Implementation to pass tests
+   - Test coverage metrics and results
+
+3. **Technical Details**
+   - Design decisions and rationale
+   - Architecture choices
+   - Performance observations
+   - Security considerations
+
+4. **Quality Metrics**
+   - Total tests written
+   - Property test cases run
+   - Fuzz testing iterations
+   - Code coverage percentage
+   - Contract test compliance
+
+5. **Reflection**
+   - Lessons learned
+   - Challenges encountered
+   - Next steps for future phases
+
+See `Docs/phase1_dev_diary.md` for the expected format and level of detail. This documentation ensures project continuity, knowledge transfer, and adherence to TDD principles.
