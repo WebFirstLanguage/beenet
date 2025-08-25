@@ -4,14 +4,18 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::RwLock;
 use warp::{Filter, Reply};
+
+static MESSAGE_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 pub struct ApiServer {
     client: ApiClient<MockClock>,
     addr: SocketAddr,
     cancelled_messages: Arc<RwLock<HashMap<String, bool>>>,
     message_statuses: Arc<RwLock<HashMap<String, String>>>,
+    name_bindings: Arc<RwLock<HashMap<String, String>>>,
 }
 
 impl ApiServer {
@@ -21,6 +25,7 @@ impl ApiServer {
             addr,
             cancelled_messages: Arc::new(RwLock::new(HashMap::new())),
             message_statuses: Arc::new(RwLock::new(HashMap::new())),
+            name_bindings: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -33,6 +38,7 @@ impl ApiServer {
         let client = self.client.clone();
         let cancelled_messages = self.cancelled_messages.clone();
         let message_statuses = self.message_statuses.clone();
+        let name_bindings = self.name_bindings.clone();
 
         let health = warp::path("health")
             .and(warp::get())
@@ -46,6 +52,7 @@ impl ApiServer {
             .and(warp::body::json())
             .and(with_client(client.clone()))
             .and(with_message_statuses(message_statuses.clone()))
+            .and(with_name_bindings(name_bindings.clone()))
             .and_then(handle_send_message);
 
         let messages_get = api_v1
@@ -88,6 +95,7 @@ impl ApiServer {
             .and(warp::post())
             .and(warp::body::json())
             .and(with_client(client.clone()))
+            .and(with_name_bindings(name_bindings.clone()))
             .and_then(handle_register_name);
 
         let names_get = api_v1
@@ -101,6 +109,7 @@ impl ApiServer {
             .and(warp::path::param::<String>())
             .and(warp::get())
             .and(with_client(client.clone()))
+            .and(with_name_bindings(name_bindings.clone()))
             .and_then(handle_resolve_name);
 
         let admin_config_get = api_v1
@@ -160,25 +169,39 @@ fn with_message_statuses(
     warp::any().map(move || message_statuses.clone())
 }
 
+fn with_name_bindings(
+    name_bindings: Arc<RwLock<HashMap<String, String>>>,
+) -> impl Filter<Extract = (Arc<RwLock<HashMap<String, String>>>,), Error = std::convert::Infallible>
+       + Clone {
+    warp::any().map(move || name_bindings.clone())
+}
+
 async fn handle_send_message(
     body: serde_json::Value,
     _client: ApiClient<MockClock>,
     message_statuses: Arc<RwLock<HashMap<String, String>>>,
+    name_bindings: Arc<RwLock<HashMap<String, String>>>,
 ) -> Result<impl Reply, warp::Rejection> {
-    let source = body.get("source").and_then(|s| s.as_str());
-    let destination = body.get("destination").and_then(|d| d.as_str());
+    let source = body.get("source").and_then(|s| s.as_str()).unwrap_or("");
+    let destination = body.get("destination").and_then(|d| d.as_str()).unwrap_or("");
 
-    if let (Some(src), Some(dst)) = (source, destination) {
-        if src.contains("unknown") || dst.contains("unknown") {
-            return Ok(warp::reply::with_status(
-                warp::reply::json(&json!({"error": "name_not_resolved"})),
-                warp::http::StatusCode::BAD_REQUEST,
-            ));
-        }
+    // Validate destination: either a registered BeeName or a 64-hex NodeID
+    let names = name_bindings.read().await;
+    let is_hex_node_id = destination.len() == 64 
+        && destination.chars().all(|c| c.is_ascii_hexdigit());
+    let dest_ok = is_hex_node_id || names.contains_key(destination);
+    let src_ok = names.contains_key(source);
+    drop(names);
+
+    if !src_ok || !dest_ok {
+        return Ok(warp::reply::with_status(
+            warp::reply::json(&json!({"error": "name_not_resolved"})),
+            warp::http::StatusCode::BAD_REQUEST,
+        ));
     }
 
     let has_signature = body.get("signature").is_some();
-    let message_id = "mock-id";
+    let message_id = MESSAGE_ID_COUNTER.fetch_add(1, Ordering::SeqCst).to_string();
     let mut response = json!({"id": message_id, "status": "accepted"});
 
     if has_signature {
@@ -188,10 +211,10 @@ async fn handle_send_message(
     message_statuses
         .write()
         .await
-        .insert(message_id.to_string(), "accepted".to_string());
+        .insert(message_id.clone(), "accepted".to_string());
 
     let statuses_clone = message_statuses.clone();
-    let id_clone = message_id.to_string();
+    let id_clone = message_id.clone();
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
         statuses_clone
@@ -275,9 +298,42 @@ async fn handle_get_message_status(
 }
 
 async fn handle_register_name(
-    _body: serde_json::Value,
+    body: serde_json::Value,
     _client: ApiClient<MockClock>,
+    name_bindings: Arc<RwLock<HashMap<String, String>>>,
 ) -> Result<impl Reply, warp::Rejection> {
+    use bee_core::name::BeeName;
+    use std::str::FromStr;
+
+    let name = body.get("beename").and_then(|v| v.as_str()).unwrap_or("");
+    let node_id = body.get("node_id").and_then(|v| v.as_str()).unwrap_or("");
+
+    // Enforce BeeName lowercase [a-z0-9-]{3,32}
+    if BeeName::from_str(name).is_err() {
+        return Ok(warp::reply::with_status(
+            warp::reply::json(&json!({"error": "invalid_beename"})),
+            warp::http::StatusCode::BAD_REQUEST,
+        ));
+    }
+
+    // Enforce NodeID as 32-byte hex (64 chars)
+    if node_id.len() != 64 || !node_id.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Ok(warp::reply::with_status(
+            warp::reply::json(&json!({"error": "invalid_node_id"})),
+            warp::http::StatusCode::BAD_REQUEST,
+        ));
+    }
+
+    let mut names = name_bindings.write().await;
+    if names.contains_key(name) {
+        return Ok(warp::reply::with_status(
+            warp::reply::json(&json!({"error": "name_already_taken"})),
+            warp::http::StatusCode::CONFLICT,
+        ));
+    }
+    names.insert(name.to_string(), node_id.to_string());
+    drop(names);
+
     Ok(warp::reply::with_status(
         warp::reply::json(&json!({"status": "registered"})),
         warp::http::StatusCode::CREATED,
@@ -289,12 +345,18 @@ async fn handle_list_names(_client: ApiClient<MockClock>) -> Result<impl Reply, 
 }
 
 async fn handle_resolve_name(
-    _name: String,
+    name: String,
     _client: ApiClient<MockClock>,
-) -> Result<impl Reply, warp::Rejection> {
-    Ok(warp::reply::json(
-        &json!({"beename": "test", "node_id": "0101010101010101010101010101010101010101010101010101010101010101"}),
-    ))
+    name_bindings: Arc<RwLock<HashMap<String, String>>>,
+) -> Result<Box<dyn Reply>, warp::Rejection> {
+    if let Some(node_id) = name_bindings.read().await.get(&name).cloned() {
+        Ok(Box::new(warp::reply::json(&json!({ "beename": name, "node_id": node_id }))))
+    } else {
+        Ok(Box::new(warp::reply::with_status(
+            warp::reply::json(&json!({"error": "name_not_found"})),
+            warp::http::StatusCode::NOT_FOUND,
+        )))
+    }
 }
 
 async fn handle_get_config(_client: ApiClient<MockClock>) -> Result<impl Reply, warp::Rejection> {
