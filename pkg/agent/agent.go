@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WebFirstLanguage/beenet/internal/dht"
 	"github.com/WebFirstLanguage/beenet/pkg/identity"
 )
 
@@ -50,6 +51,12 @@ type Agent struct {
 	state    State
 	identity *identity.Identity
 	nickname string
+
+	// DHT and networking
+	dht             *dht.DHT
+	presenceManager *dht.PresenceManager
+	bootstrap       *dht.Bootstrap
+	swarmID         string
 
 	// Lifecycle management
 	ctx    context.Context
@@ -122,6 +129,89 @@ func (a *Agent) Nickname() string {
 	return a.nickname
 }
 
+// SetSwarmID sets the swarm ID for the agent
+func (a *Agent) SetSwarmID(swarmID string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.state == StateRunning {
+		return fmt.Errorf("cannot change swarm ID while agent is running")
+	}
+
+	a.swarmID = swarmID
+	return nil
+}
+
+// GetSwarmID returns the current swarm ID
+func (a *Agent) GetSwarmID() string {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.swarmID
+}
+
+// InitializeDHT initializes the DHT components
+func (a *Agent) InitializeDHT() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.swarmID == "" {
+		return fmt.Errorf("swarm ID must be set before initializing DHT")
+	}
+
+	// Create DHT
+	dhtConfig := &dht.Config{
+		SwarmID:  a.swarmID,
+		Identity: a.identity,
+		Network:  nil, // Will be set when network layer is implemented
+	}
+
+	var err error
+	a.dht, err = dht.New(dhtConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create DHT: %w", err)
+	}
+
+	// Create presence manager
+	presenceConfig := &dht.PresenceConfig{
+		SwarmID:      a.swarmID,
+		Identity:     a.identity,
+		Addresses:    []string{}, // Will be populated when transport is ready
+		Capabilities: []string{"presence", "dht"},
+		Nickname:     a.nickname,
+	}
+
+	a.presenceManager, err = dht.NewPresenceManager(a.dht, presenceConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create presence manager: %w", err)
+	}
+
+	// Create bootstrap manager
+	bootstrapConfig := &dht.BootstrapConfig{
+		DHT: a.dht,
+	}
+
+	a.bootstrap, err = dht.NewBootstrap(bootstrapConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create bootstrap manager: %w", err)
+	}
+
+	return nil
+}
+
+// GetDHT returns the DHT instance (for testing/debugging)
+func (a *Agent) GetDHT() *dht.DHT {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.dht
+}
+
+// GetBootstrap returns the bootstrap manager
+func (a *Agent) GetBootstrap() *dht.Bootstrap {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.bootstrap
+}
+
 // Start starts the agent
 func (a *Agent) Start(ctx context.Context) error {
 	a.mu.Lock()
@@ -142,6 +232,29 @@ func (a *Agent) Start(ctx context.Context) error {
 
 	// Reset done channel
 	a.done = make(chan struct{})
+
+	// Initialize DHT if not already done
+	if a.dht == nil && a.swarmID != "" {
+		if err := a.InitializeDHT(); err != nil {
+			a.cancel()
+			return fmt.Errorf("failed to initialize DHT: %w", err)
+		}
+	}
+
+	// Start DHT components if available
+	if a.dht != nil {
+		if err := a.dht.Start(a.ctx); err != nil {
+			a.cancel()
+			return fmt.Errorf("failed to start DHT: %w", err)
+		}
+	}
+
+	if a.presenceManager != nil {
+		if err := a.presenceManager.Start(a.ctx); err != nil {
+			a.cancel()
+			return fmt.Errorf("failed to start presence manager: %w", err)
+		}
+	}
 
 	// Start the agent main loop
 	go a.run()
@@ -168,6 +281,19 @@ func (a *Agent) Stop(ctx context.Context) error {
 	}
 
 	a.state = StateStopping
+
+	// Stop DHT components
+	if a.presenceManager != nil {
+		if err := a.presenceManager.Stop(); err != nil {
+			fmt.Printf("Error stopping presence manager: %v\n", err)
+		}
+	}
+
+	if a.dht != nil {
+		if err := a.dht.Stop(); err != nil {
+			fmt.Printf("Error stopping DHT: %v\n", err)
+		}
+	}
 
 	// Cancel the agent context
 	if a.cancel != nil {

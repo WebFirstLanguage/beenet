@@ -8,6 +8,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/WebFirstLanguage/beenet/internal/dht"
 	"github.com/WebFirstLanguage/beenet/pkg/agent"
 )
 
@@ -96,6 +97,12 @@ func (s *Server) handleRequest(request Request) Response {
 		return s.handleGetInfo(request)
 	case "SetNickname":
 		return s.handleSetNickname(request)
+	case "peers":
+		return s.handleGetPeers(request)
+	case "seeds.list":
+		return s.handleSeedsList(request)
+	case "seeds.add":
+		return s.handleSeedsAdd(request)
 	default:
 		return Response{
 			ID:    request.ID,
@@ -150,6 +157,155 @@ func (s *Server) handleSetNickname(request Request) Response {
 		Result: map[string]interface{}{
 			"nickname": s.agent.Nickname(),
 			"handle":   s.agent.Handle(s.agent.Nickname()),
+		},
+	}
+}
+
+// handleGetPeers handles the peers operation
+func (s *Server) handleGetPeers(request Request) Response {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	dht := s.agent.GetDHT()
+	if dht == nil {
+		return Response{
+			ID:    request.ID,
+			Error: "DHT not initialized",
+		}
+	}
+
+	nodes := dht.GetAllNodes()
+	peers := make([]map[string]interface{}, len(nodes))
+
+	for i, node := range nodes {
+		peers[i] = map[string]interface{}{
+			"bid":       node.BID,
+			"addrs":     node.Addrs,
+			"last_seen": node.LastSeen.Format("2006-01-02T15:04:05Z07:00"),
+		}
+	}
+
+	return Response{
+		ID: request.ID,
+		Result: map[string]interface{}{
+			"peers": peers,
+		},
+	}
+}
+
+// handleSeedsList handles the seeds.list operation
+func (s *Server) handleSeedsList(request Request) Response {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	bootstrap := s.agent.GetBootstrap()
+	if bootstrap == nil {
+		return Response{
+			ID:    request.ID,
+			Error: "Bootstrap not initialized",
+		}
+	}
+
+	seedNodes := bootstrap.GetSeedNodes()
+	seeds := make([]map[string]interface{}, len(seedNodes))
+
+	for i, seed := range seedNodes {
+		seeds[i] = map[string]interface{}{
+			"bid":   seed.BID,
+			"addrs": seed.Addrs,
+			"name":  seed.Name,
+		}
+	}
+
+	return Response{
+		ID: request.ID,
+		Result: map[string]interface{}{
+			"seeds": seeds,
+		},
+	}
+}
+
+// handleSeedsAdd handles the seeds.add operation
+func (s *Server) handleSeedsAdd(request Request) Response {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	bootstrap := s.agent.GetBootstrap()
+	if bootstrap == nil {
+		return Response{
+			ID:    request.ID,
+			Error: "Bootstrap not initialized",
+		}
+	}
+
+	// Extract parameters
+	params := request.Params
+	if params == nil {
+		return Response{
+			ID:    request.ID,
+			Error: "parameters required",
+		}
+	}
+
+	bid, ok := params["bid"].(string)
+	if !ok || bid == "" {
+		return Response{
+			ID:    request.ID,
+			Error: "bid parameter is required",
+		}
+	}
+
+	addrsInterface, ok := params["addrs"]
+	if !ok {
+		return Response{
+			ID:    request.ID,
+			Error: "addrs parameter is required",
+		}
+	}
+
+	// Convert addrs to string slice
+	var addrs []string
+	if addrsList, ok := addrsInterface.([]interface{}); ok {
+		addrs = make([]string, len(addrsList))
+		for i, addr := range addrsList {
+			if addrStr, ok := addr.(string); ok {
+				addrs[i] = addrStr
+			} else {
+				return Response{
+					ID:    request.ID,
+					Error: "all addresses must be strings",
+				}
+			}
+		}
+	} else {
+		return Response{
+			ID:    request.ID,
+			Error: "addrs must be an array of strings",
+		}
+	}
+
+	name, _ := params["name"].(string) // Optional parameter
+
+	// Create seed node
+	seed := &dht.SeedNode{
+		BID:   bid,
+		Addrs: addrs,
+		Name:  name,
+	}
+
+	// Add seed node
+	if err := bootstrap.AddSeedNode(seed); err != nil {
+		return Response{
+			ID:    request.ID,
+			Error: fmt.Sprintf("failed to add seed node: %v", err),
+		}
+	}
+
+	return Response{
+		ID: request.ID,
+		Result: map[string]interface{}{
+			"success": true,
+			"message": "Seed node added successfully",
 		},
 	}
 }

@@ -55,6 +55,16 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
+	case "peers":
+		if err := peersCommand(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	case "seeds":
+		if err := seedsCommand(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 	default:
 		fmt.Printf("Unknown command: %s\n\n", command)
 		printUsage()
@@ -80,6 +90,8 @@ Commands:
   status    Show agent status
   keygen    Generate new identity keys
   handle    Show current handle
+  peers     Display discovered peer nodes
+  seeds     Manage seed nodes (add/list)
   version   Show version information
   help      Show this help message
 
@@ -331,6 +343,193 @@ func handleCommand() error {
 	fmt.Printf("BID: %s\n", id.BID())
 	fmt.Printf("Honeytag: %s\n", id.Honeytag())
 	fmt.Println("No nickname set (agent not running)")
+
+	return nil
+}
+
+// peersCommand implements the peers subcommand
+func peersCommand() error {
+	// Connect to control API
+	conn, err := net.Dial("tcp", "127.0.0.1:27777")
+	if err != nil {
+		return fmt.Errorf("failed to connect to agent (is it running?): %w", err)
+	}
+	defer conn.Close()
+
+	// Send peers request
+	request := map[string]interface{}{
+		"method": "peers",
+	}
+
+	if err := json.NewEncoder(conn).Encode(request); err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+
+	// Read response
+	var response map[string]interface{}
+	if err := json.NewDecoder(conn).Decode(&response); err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Check for error
+	if errMsg, exists := response["error"]; exists {
+		return fmt.Errorf("agent error: %v", errMsg)
+	}
+
+	// Display peers
+	if peers, exists := response["peers"]; exists {
+		if peerList, ok := peers.([]interface{}); ok {
+			if len(peerList) == 0 {
+				fmt.Println("No peers discovered yet")
+				return nil
+			}
+
+			fmt.Printf("Discovered peers (%d):\n\n", len(peerList))
+			for i, peer := range peerList {
+				if peerMap, ok := peer.(map[string]interface{}); ok {
+					fmt.Printf("%d. BID: %v\n", i+1, peerMap["bid"])
+					if addrs, ok := peerMap["addrs"].([]interface{}); ok && len(addrs) > 0 {
+						fmt.Printf("   Addresses: %v\n", addrs)
+					}
+					if lastSeen, ok := peerMap["last_seen"].(string); ok {
+						fmt.Printf("   Last seen: %v\n", lastSeen)
+					}
+					fmt.Println()
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// seedsCommand implements the seeds subcommand
+func seedsCommand() error {
+	if len(os.Args) < 3 {
+		fmt.Println("Usage:")
+		fmt.Println("  bee seeds list              - List current seed nodes")
+		fmt.Println("  bee seeds add <bid> <addr>  - Add a new seed node")
+		fmt.Println("  bee seeds add <bid> <addr> <name> - Add a new seed node with name")
+		return nil
+	}
+
+	subcommand := os.Args[2]
+	switch subcommand {
+	case "list":
+		return seedsListCommand()
+	case "add":
+		return seedsAddCommand()
+	default:
+		return fmt.Errorf("unknown seeds subcommand: %s", subcommand)
+	}
+}
+
+// seedsListCommand lists all configured seed nodes
+func seedsListCommand() error {
+	// Connect to control API
+	conn, err := net.Dial("tcp", "127.0.0.1:27777")
+	if err != nil {
+		return fmt.Errorf("failed to connect to agent (is it running?): %w", err)
+	}
+	defer conn.Close()
+
+	// Send seeds list request
+	request := map[string]interface{}{
+		"method": "seeds.list",
+	}
+
+	if err := json.NewEncoder(conn).Encode(request); err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+
+	// Read response
+	var response map[string]interface{}
+	if err := json.NewDecoder(conn).Decode(&response); err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Check for error
+	if errMsg, exists := response["error"]; exists {
+		return fmt.Errorf("agent error: %v", errMsg)
+	}
+
+	// Display seeds
+	if seeds, exists := response["seeds"]; exists {
+		if seedList, ok := seeds.([]interface{}); ok {
+			if len(seedList) == 0 {
+				fmt.Println("No seed nodes configured")
+				return nil
+			}
+
+			fmt.Printf("Configured seed nodes (%d):\n\n", len(seedList))
+			for i, seed := range seedList {
+				if seedMap, ok := seed.(map[string]interface{}); ok {
+					fmt.Printf("%d. BID: %v\n", i+1, seedMap["bid"])
+					if name, ok := seedMap["name"].(string); ok && name != "" {
+						fmt.Printf("   Name: %v\n", name)
+					}
+					if addrs, ok := seedMap["addrs"].([]interface{}); ok && len(addrs) > 0 {
+						fmt.Printf("   Addresses: %v\n", addrs)
+					}
+					fmt.Println()
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// seedsAddCommand adds a new seed node
+func seedsAddCommand() error {
+	if len(os.Args) < 5 {
+		return fmt.Errorf("usage: bee seeds add <bid> <addr> [name]")
+	}
+
+	bid := os.Args[3]
+	addr := os.Args[4]
+	name := ""
+	if len(os.Args) > 5 {
+		name = os.Args[5]
+	}
+
+	// Connect to control API
+	conn, err := net.Dial("tcp", "127.0.0.1:27777")
+	if err != nil {
+		return fmt.Errorf("failed to connect to agent (is it running?): %w", err)
+	}
+	defer conn.Close()
+
+	// Send seeds add request
+	request := map[string]interface{}{
+		"method": "seeds.add",
+		"params": map[string]interface{}{
+			"bid":   bid,
+			"addrs": []string{addr},
+			"name":  name,
+		},
+	}
+
+	if err := json.NewEncoder(conn).Encode(request); err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+
+	// Read response
+	var response map[string]interface{}
+	if err := json.NewDecoder(conn).Decode(&response); err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Check for error
+	if errMsg, exists := response["error"]; exists {
+		return fmt.Errorf("agent error: %v", errMsg)
+	}
+
+	fmt.Printf("Added seed node: %s\n", bid)
+	if name != "" {
+		fmt.Printf("Name: %s\n", name)
+	}
+	fmt.Printf("Address: %s\n", addr)
 
 	return nil
 }
