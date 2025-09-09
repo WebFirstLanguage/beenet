@@ -366,6 +366,25 @@ func NewDHTPutFrame(from string, seq uint64, key, value, sig []byte) *BaseFrame 
 	})
 }
 
+// Content Protocol Helper Functions
+
+// NewFetchChunkFrame creates a new FETCH_CHUNK frame
+func NewFetchChunkFrame(from string, seq uint64, cid string, offset *uint64) *BaseFrame {
+	return NewBaseFrame(constants.KindFetchChunk, from, seq, &FetchChunkBody{
+		CID:    cid,
+		Offset: offset,
+	})
+}
+
+// NewChunkDataFrame creates a new CHUNK_DATA frame
+func NewChunkDataFrame(from string, seq uint64, cid string, offset uint64, data []byte) *BaseFrame {
+	return NewBaseFrame(constants.KindChunkData, from, seq, &ChunkDataBody{
+		CID:  cid,
+		Off:  offset,
+		Data: data,
+	})
+}
+
 // SWIM Protocol Helper Functions
 
 // NewSWIMPingFrame creates a new SWIM_PING frame
