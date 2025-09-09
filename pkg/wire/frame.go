@@ -81,7 +81,7 @@ func (f *BaseFrame) Unmarshal(data []byte) error {
 // Validate performs basic validation on the frame
 func (f *BaseFrame) Validate() error {
 	if f.V != constants.ProtocolVersion {
-		return NewError(constants.ErrorVersionMismatch, 
+		return NewError(constants.ErrorVersionMismatch,
 			fmt.Sprintf("unsupported protocol version: %d", f.V))
 	}
 
@@ -96,11 +96,11 @@ func (f *BaseFrame) Validate() error {
 	// Check timestamp is reasonable (within max clock skew)
 	now := uint64(time.Now().UnixMilli())
 	maxSkew := uint64(constants.MaxClockSkew.Milliseconds())
-	
+
 	if f.TS > now+maxSkew {
 		return NewError(constants.ErrorVersionMismatch, "timestamp too far in future")
 	}
-	
+
 	if now > f.TS+maxSkew {
 		return NewError(constants.ErrorVersionMismatch, "timestamp too far in past")
 	}
@@ -144,7 +144,7 @@ type DHTPutBody struct {
 
 // FetchChunkBody represents the body of a FETCH_CHUNK message (§15)
 type FetchChunkBody struct {
-	CID    string  `cbor:"cid"`            // Content ID
+	CID    string  `cbor:"cid"`              // Content ID
 	Offset *uint64 `cbor:"offset,omitempty"` // Optional byte offset
 }
 
@@ -153,6 +153,104 @@ type ChunkDataBody struct {
 	CID  string `cbor:"cid"`  // Content ID
 	Off  uint64 `cbor:"off"`  // Byte offset
 	Data []byte `cbor:"data"` // Chunk data
+}
+
+// SWIM Protocol Message Bodies
+
+// SWIMPingBody represents the body of a SWIM_PING message
+type SWIMPingBody struct {
+	Target string `cbor:"target"` // Target BID to ping
+	SeqNo  uint64 `cbor:"seq_no"` // Sequence number for this ping
+}
+
+// SWIMPingReqBody represents the body of a SWIM_PING_REQ message (indirect ping)
+type SWIMPingReqBody struct {
+	Target    string `cbor:"target"`    // Target BID to ping
+	SeqNo     uint64 `cbor:"seq_no"`    // Sequence number for this ping
+	Requestor string `cbor:"requestor"` // BID of the original requestor
+	Timeout   uint64 `cbor:"timeout"`   // Timeout in milliseconds
+}
+
+// SWIMPingRespBody represents the body of a SWIM_PING_RESP message
+type SWIMPingRespBody struct {
+	Target    string `cbor:"target"`    // Target BID that was pinged
+	SeqNo     uint64 `cbor:"seq_no"`    // Sequence number from the original ping
+	Requestor string `cbor:"requestor"` // BID of the original requestor
+	Success   bool   `cbor:"success"`   // Whether the ping was successful
+}
+
+// SWIMAckBody represents the body of a SWIM_ACK message
+type SWIMAckBody struct {
+	SeqNo uint64 `cbor:"seq_no"` // Sequence number being acknowledged
+}
+
+// SWIMNackBody represents the body of a SWIM_NACK message
+type SWIMNackBody struct {
+	SeqNo uint64 `cbor:"seq_no"` // Sequence number being negatively acknowledged
+}
+
+// SWIMSuspectBody represents the body of a SWIM_SUSPECT message
+type SWIMSuspectBody struct {
+	Target      string `cbor:"target"`      // BID of the suspected member
+	Incarnation uint64 `cbor:"incarnation"` // Incarnation number of the suspected member
+}
+
+// SWIMAliveBody represents the body of a SWIM_ALIVE message
+type SWIMAliveBody struct {
+	Target      string   `cbor:"target"`      // BID of the alive member
+	Incarnation uint64   `cbor:"incarnation"` // Incarnation number of the alive member
+	Addrs       []string `cbor:"addrs"`       // Current addresses of the member
+}
+
+// SWIMConfirmBody represents the body of a SWIM_CONFIRM message
+type SWIMConfirmBody struct {
+	Target      string `cbor:"target"`      // BID of the confirmed failed member
+	Incarnation uint64 `cbor:"incarnation"` // Incarnation number of the failed member
+}
+
+// SWIMLeaveBody represents the body of a SWIM_LEAVE message
+type SWIMLeaveBody struct {
+	Incarnation uint64 `cbor:"incarnation"` // Incarnation number of the leaving member
+}
+
+// Gossip Protocol Message Bodies
+
+// GossipIHaveBody represents the body of a GOSSIP_IHAVE message
+type GossipIHaveBody struct {
+	Topic      string   `cbor:"topic"`       // Topic ID
+	MessageIDs []string `cbor:"message_ids"` // List of message IDs we have
+}
+
+// GossipIWantBody represents the body of a GOSSIP_IWANT message
+type GossipIWantBody struct {
+	MessageIDs []string `cbor:"message_ids"` // List of message IDs we want
+}
+
+// GossipGraftBody represents the body of a GOSSIP_GRAFT message
+type GossipGraftBody struct {
+	Topic string `cbor:"topic"` // Topic ID to join
+}
+
+// GossipPruneBody represents the body of a GOSSIP_PRUNE message
+type GossipPruneBody struct {
+	Topic string   `cbor:"topic"` // Topic ID to leave
+	Peers []string `cbor:"peers"` // Alternative peers for the topic
+}
+
+// GossipHeartbeatBody represents the body of a GOSSIP_HEARTBEAT message
+type GossipHeartbeatBody struct {
+	Topics []string `cbor:"topics"` // List of topics we're subscribed to
+}
+
+// PubSubMessageEnvelope represents the envelope for PubSub messages (§10)
+type PubSubMessageEnvelope struct {
+	MID     string `cbor:"mid"`     // Message ID: multihash(blake3-256, payload || from || seq)
+	From    string `cbor:"from"`    // Sender BID
+	Seq     uint64 `cbor:"seq"`     // Sequence number
+	TS      uint64 `cbor:"ts"`      // Timestamp (ms since epoch)
+	Topic   string `cbor:"topic"`   // Topic ID
+	Payload []byte `cbor:"payload"` // Message payload
+	Sig     []byte `cbor:"sig"`     // Ed25519 signature over canonical envelope
 }
 
 // Helper functions for creating common frame types
@@ -179,4 +277,76 @@ func NewDHTPutFrame(from string, seq uint64, key, value, sig []byte) *BaseFrame 
 		Value: value,
 		Sig:   sig,
 	})
+}
+
+// SWIM Protocol Helper Functions
+
+// NewSWIMPingFrame creates a new SWIM_PING frame
+func NewSWIMPingFrame(from string, seq uint64, target string, seqNo uint64) *BaseFrame {
+	return NewBaseFrame(constants.KindSWIMPing, from, seq, &SWIMPingBody{
+		Target: target,
+		SeqNo:  seqNo,
+	})
+}
+
+// NewSWIMPingReqFrame creates a new SWIM_PING_REQ frame
+func NewSWIMPingReqFrame(from string, seq uint64, target, requestor string, seqNo, timeout uint64) *BaseFrame {
+	return NewBaseFrame(constants.KindSWIMPingReq, from, seq, &SWIMPingReqBody{
+		Target:    target,
+		SeqNo:     seqNo,
+		Requestor: requestor,
+		Timeout:   timeout,
+	})
+}
+
+// NewSWIMAckFrame creates a new SWIM_ACK frame
+func NewSWIMAckFrame(from string, seq uint64, seqNo uint64) *BaseFrame {
+	return NewBaseFrame(constants.KindSWIMAck, from, seq, &SWIMAckBody{
+		SeqNo: seqNo,
+	})
+}
+
+// NewSWIMSuspectFrame creates a new SWIM_SUSPECT frame
+func NewSWIMSuspectFrame(from string, seq uint64, target string, incarnation uint64) *BaseFrame {
+	return NewBaseFrame(constants.KindSWIMSuspect, from, seq, &SWIMSuspectBody{
+		Target:      target,
+		Incarnation: incarnation,
+	})
+}
+
+// Gossip Protocol Helper Functions
+
+// NewGossipIHaveFrame creates a new GOSSIP_IHAVE frame
+func NewGossipIHaveFrame(from string, seq uint64, topic string, messageIDs []string) *BaseFrame {
+	return NewBaseFrame(constants.KindGossipIHave, from, seq, &GossipIHaveBody{
+		Topic:      topic,
+		MessageIDs: messageIDs,
+	})
+}
+
+// NewGossipIWantFrame creates a new GOSSIP_IWANT frame
+func NewGossipIWantFrame(from string, seq uint64, messageIDs []string) *BaseFrame {
+	return NewBaseFrame(constants.KindGossipIWant, from, seq, &GossipIWantBody{
+		MessageIDs: messageIDs,
+	})
+}
+
+// NewGossipGraftFrame creates a new GOSSIP_GRAFT frame
+func NewGossipGraftFrame(from string, seq uint64, topic string) *BaseFrame {
+	return NewBaseFrame(constants.KindGossipGraft, from, seq, &GossipGraftBody{
+		Topic: topic,
+	})
+}
+
+// NewGossipPruneFrame creates a new GOSSIP_PRUNE frame
+func NewGossipPruneFrame(from string, seq uint64, topic string, peers []string) *BaseFrame {
+	return NewBaseFrame(constants.KindGossipPrune, from, seq, &GossipPruneBody{
+		Topic: topic,
+		Peers: peers,
+	})
+}
+
+// NewPubSubMessageFrame creates a new PUBSUB_MSG frame
+func NewPubSubMessageFrame(from string, seq uint64, envelope *PubSubMessageEnvelope) *BaseFrame {
+	return NewBaseFrame(constants.KindPubSubMsg, from, seq, envelope)
 }

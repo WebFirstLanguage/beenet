@@ -407,6 +407,18 @@ func (d *DHT) GetSecurityStats() map[string]interface{} {
 	return d.security.GetStats()
 }
 
+// GetNetworkInterface returns the network interface
+func (d *DHT) GetNetworkInterface() NetworkInterface {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.network
+}
+
+// HandleMessage is a wrapper for HandleDHTMessage for compatibility
+func (d *DHT) HandleMessage(frame *wire.BaseFrame) error {
+	return d.HandleDHTMessage(frame)
+}
+
 // getNextSeq returns the next sequence number for messages
 func (d *DHT) getNextSeq() uint64 {
 	// Simple implementation - in production, this should be properly managed

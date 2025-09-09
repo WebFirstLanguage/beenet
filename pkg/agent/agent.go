@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/WebFirstLanguage/beenet/internal/dht"
+	"github.com/WebFirstLanguage/beenet/pkg/gossip"
 	"github.com/WebFirstLanguage/beenet/pkg/identity"
+	"github.com/WebFirstLanguage/beenet/pkg/swim"
 )
 
 // State represents the current state of the agent
@@ -57,6 +59,12 @@ type Agent struct {
 	presenceManager *dht.PresenceManager
 	bootstrap       *dht.Bootstrap
 	swarmID         string
+
+	// SWIM and Gossip protocols
+	swim           *swim.SWIM
+	gossip         *gossip.Gossip
+	networkAdapter *NetworkAdapter
+	messageRouter  *MessageRouter
 
 	// Lifecycle management
 	ctx    context.Context
@@ -172,10 +180,11 @@ func (a *Agent) InitializeDHT() error {
 	}
 
 	// Create presence manager
+	addresses := []string{"/ip4/127.0.0.1/tcp/0"} // Default address for testing
 	presenceConfig := &dht.PresenceConfig{
 		SwarmID:      a.swarmID,
 		Identity:     a.identity,
-		Addresses:    []string{}, // Will be populated when transport is ready
+		Addresses:    addresses,
 		Capabilities: []string{"presence", "dht"},
 		Nickname:     a.nickname,
 	}
@@ -198,6 +207,66 @@ func (a *Agent) InitializeDHT() error {
 	return nil
 }
 
+// InitializeSWIMAndGossip initializes the SWIM and gossip protocols
+func (a *Agent) InitializeSWIMAndGossip() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.swarmID == "" {
+		return fmt.Errorf("swarm ID must be set before initializing SWIM and gossip")
+	}
+
+	if a.dht == nil {
+		return fmt.Errorf("DHT must be initialized before SWIM and gossip")
+	}
+
+	// Create network adapter
+	a.networkAdapter = NewNetworkAdapter(a.dht.GetNetworkInterface())
+
+	// Create message router
+	a.messageRouter = NewMessageRouter()
+
+	// Initialize SWIM protocol
+	swimConfig := &swim.Config{
+		Identity:         a.identity,
+		SwarmID:          a.swarmID,
+		Network:          NewSWIMNetworkAdapter(a.networkAdapter),
+		BindAddr:         "/ip4/0.0.0.0/tcp/0", // Will be updated when transport is ready
+		ProbeInterval:    0,                    // Use defaults
+		PingTimeout:      0,                    // Use defaults
+		IndirectTimeout:  0,                    // Use defaults
+		SuspicionTimeout: 0,                    // Use defaults
+	}
+
+	var err error
+	a.swim, err = swim.New(swimConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create SWIM instance: %w", err)
+	}
+
+	// Initialize gossip protocol
+	gossipConfig := &gossip.Config{
+		Identity:          a.identity,
+		SwarmID:           a.swarmID,
+		Network:           NewGossipNetworkAdapter(a.networkAdapter),
+		HeartbeatInterval: 0, // Use defaults
+		MeshMin:           0, // Use defaults
+		MeshMax:           0, // Use defaults
+	}
+
+	a.gossip, err = gossip.New(gossipConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create gossip instance: %w", err)
+	}
+
+	// Set up message routing
+	a.messageRouter.SetSWIMHandler(a.swim)
+	a.messageRouter.SetGossipHandler(a.gossip)
+	a.messageRouter.SetDHTHandler(a.dht)
+
+	return nil
+}
+
 // GetDHT returns the DHT instance (for testing/debugging)
 func (a *Agent) GetDHT() *dht.DHT {
 	a.mu.RLock()
@@ -210,6 +279,27 @@ func (a *Agent) GetBootstrap() *dht.Bootstrap {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	return a.bootstrap
+}
+
+// GetSWIM returns the SWIM instance (for testing/debugging)
+func (a *Agent) GetSWIM() *swim.SWIM {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.swim
+}
+
+// GetGossip returns the gossip instance (for testing/debugging)
+func (a *Agent) GetGossip() *gossip.Gossip {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.gossip
+}
+
+// GetMessageRouter returns the message router (for testing/debugging)
+func (a *Agent) GetMessageRouter() *MessageRouter {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.messageRouter
 }
 
 // Start starts the agent
@@ -241,6 +331,14 @@ func (a *Agent) Start(ctx context.Context) error {
 		}
 	}
 
+	// Initialize SWIM and gossip if not already done
+	if a.swim == nil && a.gossip == nil && a.dht != nil {
+		if err := a.InitializeSWIMAndGossip(); err != nil {
+			a.cancel()
+			return fmt.Errorf("failed to initialize SWIM and gossip: %w", err)
+		}
+	}
+
 	// Start DHT components if available
 	if a.dht != nil {
 		if err := a.dht.Start(a.ctx); err != nil {
@@ -253,6 +351,21 @@ func (a *Agent) Start(ctx context.Context) error {
 		if err := a.presenceManager.Start(a.ctx); err != nil {
 			a.cancel()
 			return fmt.Errorf("failed to start presence manager: %w", err)
+		}
+	}
+
+	// Start SWIM and gossip protocols if available
+	if a.swim != nil {
+		if err := a.swim.Start(a.ctx); err != nil {
+			a.cancel()
+			return fmt.Errorf("failed to start SWIM: %w", err)
+		}
+	}
+
+	if a.gossip != nil {
+		if err := a.gossip.Start(a.ctx); err != nil {
+			a.cancel()
+			return fmt.Errorf("failed to start gossip: %w", err)
 		}
 	}
 

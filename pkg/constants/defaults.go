@@ -28,6 +28,12 @@ const (
 	GossipMeshMin   = 6
 	GossipMeshMax   = 12
 
+	// SWIM failure detection timeouts
+	SWIMPingTimeout     = 1 * time.Second  // Direct ping timeout
+	SWIMIndirectTimeout = 3 * time.Second  // Indirect ping timeout
+	SWIMSuspicionTime   = 10 * time.Second // Time to remain in suspect state
+	SWIMProbeInterval   = 5 * time.Second  // Interval between probes
+
 	// Max tolerated clock skew ±120s
 	MaxClockSkew = 120 * time.Second
 
@@ -38,8 +44,11 @@ const (
 // Data Configuration (§21)
 const (
 	// Chunk size 1 MiB, concurrent chunk fetch 4
-	ChunkSize           = 1024 * 1024 // 1 MiB
+	ChunkSize            = 1024 * 1024 // 1 MiB
 	ConcurrentChunkFetch = 4
+
+	// DHT Configuration (K=20 already defined as DHTBucketSize above)
+	// DHTAlpha = 3 already defined above
 )
 
 // Protocol Configuration (§18)
@@ -67,11 +76,11 @@ const (
 
 // Error Codes (§17)
 const (
-	ErrorInvalidSig       = 1
-	ErrorNotInSwarm       = 2
-	ErrorNoProvider       = 3
-	ErrorRateLimit        = 4
-	ErrorVersionMismatch  = 5
+	ErrorInvalidSig      = 1
+	ErrorNotInSwarm      = 2
+	ErrorNoProvider      = 3
+	ErrorRateLimit       = 4
+	ErrorVersionMismatch = 5
 
 	// Honeytag-specific errors
 	ErrorNameNotFound      = 20
@@ -83,13 +92,31 @@ const (
 
 // Message Kinds (§15)
 const (
-	KindPing            = 1
-	KindPong            = 2
-	KindDHTGet          = 10
-	KindDHTPut          = 11
+	KindPing             = 1
+	KindPong             = 2
+	KindDHTGet           = 10
+	KindDHTPut           = 11
 	KindAnnouncePresence = 20
-	KindPubSubMsg       = 30
-	KindFetchChunk      = 40
-	KindChunkData       = 41
-	KindHoneytagOp      = 50
+	KindPubSubMsg        = 30
+	KindFetchChunk       = 40
+	KindChunkData        = 41
+	KindHoneytagOp       = 50
+
+	// SWIM Protocol Message Kinds
+	KindSWIMPing     = 60 // Direct ping for liveness detection
+	KindSWIMPingReq  = 61 // Indirect ping request
+	KindSWIMPingResp = 62 // Indirect ping response
+	KindSWIMAck      = 63 // Acknowledgment of ping
+	KindSWIMNack     = 64 // Negative acknowledgment
+	KindSWIMSuspect  = 65 // Suspect member announcement
+	KindSWIMAlive    = 66 // Alive member announcement
+	KindSWIMConfirm  = 67 // Confirm member failure
+	KindSWIMLeave    = 68 // Voluntary leave announcement
+
+	// Gossip Protocol Message Kinds
+	KindGossipIHave     = 70 // IHAVE message with message IDs
+	KindGossipIWant     = 71 // IWANT message requesting specific messages
+	KindGossipGraft     = 72 // GRAFT message to join topic mesh
+	KindGossipPrune     = 73 // PRUNE message to leave topic mesh
+	KindGossipHeartbeat = 74 // Heartbeat to maintain mesh connections
 )
