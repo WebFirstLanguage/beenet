@@ -1,0 +1,107 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  GO_VERSION: '1.21'
+
+jobs:
+  # Create release with cross-compiled binaries
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Run tests
+      run: make ci
+
+    - name: Cross-compile and create release archives
+      run: make release
+
+    - name: Generate changelog
+      id: changelog
+      run: |
+        if [ -f CHANGELOG.md ]; then
+          # Extract changelog for this version
+          awk '/^## \[/{if(p) exit; if(/\['${GITHUB_REF_NAME#v}'\]/) p=1; next} p' CHANGELOG.md > release_notes.md
+        else
+          echo "Release ${GITHUB_REF_NAME}" > release_notes.md
+          echo "" >> release_notes.md
+          echo "Automated release from tag ${GITHUB_REF_NAME}" >> release_notes.md
+        fi
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: dist/*
+        body_path: release_notes.md
+        draft: false
+        prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Test release binaries
+  test-release:
+    name: Test Release Binaries
+    needs: release
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Download release artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: release-artifacts
+        path: ./dist
+
+    - name: Test binary (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        # Find and test the appropriate binary for this OS
+        if [ "${{ runner.os }}" = "Linux" ]; then
+          binary=$(find ./dist -name "*linux*" -type f | head -1)
+        elif [ "${{ runner.os }}" = "macOS" ]; then
+          binary=$(find ./dist -name "*darwin*" -type f | head -1)
+        fi
+        
+        if [ -n "$binary" ]; then
+          chmod +x "$binary"
+          "$binary" version
+          "$binary" help
+        fi
+
+    - name: Test binary (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        $binary = Get-ChildItem -Path "./dist" -Name "*windows*.exe" | Select-Object -First 1
+        if ($binary) {
+          $fullPath = Join-Path "./dist" $binary
+          & $fullPath version
+          & $fullPath help
+        }
