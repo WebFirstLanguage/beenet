@@ -4,7 +4,7 @@
 .PHONY: all build test clean fmt lint vet race fuzz deps tidy check install cross-compile release help
 
 # Build configuration
-BINARY_NAME := beenet
+BINARY_NAME := bee
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 COMMIT_HASH := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -35,12 +35,12 @@ all: check build
 build:
 	@echo "Building $(BINARY_NAME) $(VERSION)..."
 	@mkdir -p $(BUILD_DIR)
-	$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/beenet
+	$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/bee
 
 # Install the binary
 install:
 	@echo "Installing $(BINARY_NAME)..."
-	$(GO) install $(GOFLAGS) -ldflags "$(LDFLAGS)" ./cmd/beenet
+	$(GO) install $(GOFLAGS) -ldflags "$(LDFLAGS)" ./cmd/bee
 
 # Run tests
 test:
@@ -119,7 +119,7 @@ cross-compile:
 		output_name=$(BINARY_NAME)-$(VERSION)-$$os-$$arch; \
 		if [ $$os = "windows" ]; then output_name=$$output_name.exe; fi; \
 		echo "Building for $$os/$$arch..."; \
-		GOOS=$$os GOARCH=$$arch $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$$output_name ./cmd/beenet; \
+		GOOS=$$os GOARCH=$$arch $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$$output_name ./cmd/bee; \
 	done
 
 # Create release archives

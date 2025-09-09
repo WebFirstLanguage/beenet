@@ -73,7 +73,7 @@ This document maps clauses from the Beenet v0.1 specification to their correspon
 
 ```
 beenet/
-├── cmd/beenet/                 # CLI application
+├── cmd/bee/                    # CLI application
 ├── pkg/                        # Public API packages
 │   ├── codec/cborcanon/       # Canonical CBOR encoding
 │   ├── constants/             # Cross-cutting constants

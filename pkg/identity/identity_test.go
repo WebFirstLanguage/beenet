@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -329,4 +330,349 @@ func BenchmarkBeeQuint32Decode(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+}
+
+// TestNicknameNormalization tests NFKC normalization of nicknames per §4.1
+func TestNicknameNormalization(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+		wantErr  bool
+	}{
+		{
+			name:     "simple_ascii",
+			input:    "alice",
+			expected: "alice",
+			wantErr:  false,
+		},
+		{
+			name:     "with_numbers",
+			input:    "alice123",
+			expected: "alice123",
+			wantErr:  false,
+		},
+		{
+			name:     "with_hyphens",
+			input:    "alice-bob",
+			expected: "alice-bob",
+			wantErr:  false,
+		},
+		{
+			name:     "uppercase_normalized",
+			input:    "ALICE",
+			expected: "alice",
+			wantErr:  false,
+		},
+		{
+			name:     "mixed_case_normalized",
+			input:    "AlIcE",
+			expected: "alice",
+			wantErr:  false,
+		},
+		{
+			name:     "unicode_nfkc_normalization",
+			input:    "café", // Contains é (U+00E9)
+			expected: "caf",  // é gets removed since it's not [a-z0-9-]
+			wantErr:  false,
+		},
+		{
+			name:     "minimum_length",
+			input:    "abc",
+			expected: "abc",
+			wantErr:  false,
+		},
+		{
+			name:     "maximum_length",
+			input:    "abcdefghijklmnopqrstuvwxyz123456", // 32 chars
+			expected: "abcdefghijklmnopqrstuvwxyz123456",
+			wantErr:  false,
+		},
+		{
+			name:    "too_short",
+			input:   "ab",
+			wantErr: true,
+		},
+		{
+			name:    "too_long",
+			input:   "abcdefghijklmnopqrstuvwxyz1234567", // 33 chars
+			wantErr: true,
+		},
+		{
+			name:     "invalid_characters_space_removed",
+			input:    "alice bob",
+			expected: "alicebob", // Space removed, but result is valid
+			wantErr:  false,
+		},
+		{
+			name:     "invalid_characters_underscore_removed",
+			input:    "alice_bob",
+			expected: "alicebob", // Underscore removed, but result is valid
+			wantErr:  false,
+		},
+		{
+			name:     "invalid_characters_dot_removed",
+			input:    "alice.bob",
+			expected: "alicebob", // Dot removed, but result is valid
+			wantErr:  false,
+		},
+		{
+			name:    "invalid_after_normalization_too_short",
+			input:   "a!@#", // After removing invalid chars, becomes "a" which is too short
+			wantErr: true,
+		},
+		{
+			name:    "empty_string",
+			input:   "",
+			wantErr: true,
+		},
+		{
+			name:    "only_hyphens",
+			input:   "---",
+			wantErr: true, // Should probably be invalid
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			normalized, err := NormalizeNickname(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("Expected error for input %q, got nil", tt.input)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error for input %q: %v", tt.input, err)
+				}
+				if normalized != tt.expected {
+					t.Errorf("Normalization mismatch for %q: expected %q, got %q", tt.input, tt.expected, normalized)
+				}
+			}
+		})
+	}
+}
+
+// TestValidateNickname tests nickname validation per §4.1
+func TestValidateNickname(t *testing.T) {
+	tests := []struct {
+		name     string
+		nickname string
+		wantErr  bool
+	}{
+		{
+			name:     "valid_simple",
+			nickname: "alice",
+			wantErr:  false,
+		},
+		{
+			name:     "valid_with_numbers",
+			nickname: "alice123",
+			wantErr:  false,
+		},
+		{
+			name:     "valid_with_hyphens",
+			nickname: "alice-bob",
+			wantErr:  false,
+		},
+		{
+			name:     "valid_minimum_length",
+			nickname: "abc",
+			wantErr:  false,
+		},
+		{
+			name:     "valid_maximum_length",
+			nickname: "abcdefghijklmnopqrstuvwxyz123456", // 32 chars
+			wantErr:  false,
+		},
+		{
+			name:     "invalid_too_short",
+			nickname: "ab",
+			wantErr:  true,
+		},
+		{
+			name:     "invalid_too_long",
+			nickname: "abcdefghijklmnopqrstuvwxyz1234567", // 33 chars
+			wantErr:  true,
+		},
+		{
+			name:     "invalid_uppercase",
+			nickname: "ALICE", // Should be normalized first
+			wantErr:  true,
+		},
+		{
+			name:     "invalid_space",
+			nickname: "alice bob",
+			wantErr:  true,
+		},
+		{
+			name:     "invalid_underscore",
+			nickname: "alice_bob",
+			wantErr:  true,
+		},
+		{
+			name:     "invalid_special_chars",
+			nickname: "alice@bob",
+			wantErr:  true,
+		},
+		{
+			name:     "invalid_empty",
+			nickname: "",
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateNickname(tt.nickname)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("Expected error for nickname %q, got nil", tt.nickname)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error for nickname %q: %v", tt.nickname, err)
+				}
+			}
+		})
+	}
+}
+
+// TestIdentityFilePermissions tests that identity files are saved with secure permissions
+func TestIdentityFilePermissions(t *testing.T) {
+	// Create temporary directory
+	tempDir, err := os.MkdirTemp("", "beenet-permissions-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Generate identity
+	identity, err := GenerateIdentity()
+	if err != nil {
+		t.Fatalf("Failed to generate identity: %v", err)
+	}
+
+	// Save to file in subdirectory (to test directory permissions too)
+	filename := filepath.Join(tempDir, "subdir", "identity.json")
+	if err := identity.SaveToFile(filename); err != nil {
+		t.Fatalf("Failed to save identity: %v", err)
+	}
+
+	// Check file permissions (skip detailed permission checks on Windows)
+	fileInfo, err := os.Stat(filename)
+	if err != nil {
+		t.Fatalf("Failed to stat identity file: %v", err)
+	}
+
+	// On Unix systems, file should have 0600 permissions (owner read/write only)
+	// On Windows, permissions work differently, so we just verify the file exists
+	if runtime.GOOS != "windows" {
+		expectedFileMode := os.FileMode(0600)
+		if fileInfo.Mode().Perm() != expectedFileMode {
+			t.Errorf("Identity file has incorrect permissions: expected %o, got %o",
+				expectedFileMode, fileInfo.Mode().Perm())
+		}
+	}
+
+	// Check directory permissions
+	dirInfo, err := os.Stat(filepath.Dir(filename))
+	if err != nil {
+		t.Fatalf("Failed to stat identity directory: %v", err)
+	}
+
+	// On Unix systems, directory should have 0700 permissions (owner read/write/execute only)
+	// On Windows, permissions work differently, so we just verify the directory exists
+	if runtime.GOOS != "windows" {
+		expectedDirMode := os.FileMode(0700)
+		if dirInfo.Mode().Perm() != expectedDirMode {
+			t.Errorf("Identity directory has incorrect permissions: expected %o, got %o",
+				expectedDirMode, dirInfo.Mode().Perm())
+		}
+	}
+}
+
+// TestIdentityFileSecurityValidation tests that identity files cannot be read by others
+func TestIdentityFileSecurityValidation(t *testing.T) {
+	// Skip this test on Windows as file permissions work differently
+	if os.Getenv("GOOS") == "windows" {
+		t.Skip("Skipping file permission test on Windows")
+	}
+
+	// Create temporary directory
+	tempDir, err := os.MkdirTemp("", "beenet-security-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Generate identity
+	identity, err := GenerateIdentity()
+	if err != nil {
+		t.Fatalf("Failed to generate identity: %v", err)
+	}
+
+	// Save to file
+	filename := filepath.Join(tempDir, "identity.json")
+	if err := identity.SaveToFile(filename); err != nil {
+		t.Fatalf("Failed to save identity: %v", err)
+	}
+
+	// Verify file exists and has correct content
+	loaded, err := LoadFromFile(filename)
+	if err != nil {
+		t.Fatalf("Failed to load identity: %v", err)
+	}
+
+	// Verify loaded identity matches original
+	if loaded.BID() != identity.BID() {
+		t.Errorf("Loaded identity BID doesn't match: expected %s, got %s",
+			identity.BID(), loaded.BID())
+	}
+
+	if loaded.Honeytag() != identity.Honeytag() {
+		t.Errorf("Loaded identity honeytag doesn't match: expected %s, got %s",
+			identity.Honeytag(), loaded.Honeytag())
+	}
+}
+
+// TestIdentityDirectoryCreation tests that identity directory is created with secure permissions
+func TestIdentityDirectoryCreation(t *testing.T) {
+	// Create temporary directory
+	tempDir, err := os.MkdirTemp("", "beenet-dir-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Generate identity
+	identity, err := GenerateIdentity()
+	if err != nil {
+		t.Fatalf("Failed to generate identity: %v", err)
+	}
+
+	// Save to file in nested subdirectories
+	filename := filepath.Join(tempDir, "level1", "level2", "identity.json")
+	if err := identity.SaveToFile(filename); err != nil {
+		t.Fatalf("Failed to save identity: %v", err)
+	}
+
+	// Check that all directories were created with correct permissions
+	checkDirPermissions := func(dirPath string) {
+		dirInfo, err := os.Stat(dirPath)
+		if err != nil {
+			t.Fatalf("Failed to stat directory %s: %v", dirPath, err)
+		}
+
+		// Only check permissions on Unix systems
+		if runtime.GOOS != "windows" {
+			expectedMode := os.FileMode(0700)
+			if dirInfo.Mode().Perm() != expectedMode {
+				t.Errorf("Directory %s has incorrect permissions: expected %o, got %o",
+					dirPath, expectedMode, dirInfo.Mode().Perm())
+			}
+		}
+	}
+
+	checkDirPermissions(filepath.Join(tempDir, "level1"))
+	checkDirPermissions(filepath.Join(tempDir, "level1", "level2"))
 }

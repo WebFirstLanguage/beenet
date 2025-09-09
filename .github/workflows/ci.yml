@@ -188,14 +188,14 @@ jobs:
     - name: Test build artifact (Unix)
       if: runner.os != 'Windows'
       run: |
-        ./build/beenet version
-        ./build/beenet help
+        ./build/bee version
+        ./build/bee help
 
     - name: Test build artifact (Windows)
       if: runner.os == 'Windows'
       run: |
-        .\build\beenet.exe version
-        .\build\beenet.exe help
+        .\build\bee.exe version
+        .\build\bee.exe help
 
   # Security scan
   security:

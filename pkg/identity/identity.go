@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"golang.org/x/crypto/curve25519"
+	"golang.org/x/text/unicode/norm"
 	"lukechampine.com/blake3"
 )
 
@@ -188,6 +189,72 @@ func ValidateHoneytag(bid, honeytag string) error {
 // Handle creates a full handle from nickname and honeytag
 func (id *Identity) Handle(nickname string) string {
 	return fmt.Sprintf("%s~%s", nickname, id.Honeytag())
+}
+
+// NormalizeNickname normalizes a nickname according to §4.1:
+// - NFKC normalization
+// - Lowercase conversion
+// - Validation of allowed characters [a-z0-9-]
+// - Length validation (3-32 characters)
+func NormalizeNickname(nickname string) (string, error) {
+	if nickname == "" {
+		return "", fmt.Errorf("nickname cannot be empty")
+	}
+
+	// Apply NFKC normalization
+	normalized := norm.NFKC.String(nickname)
+
+	// Convert to lowercase
+	normalized = strings.ToLower(normalized)
+
+	// Remove any non-ASCII characters that might remain after normalization
+	// Keep only [a-z0-9-]
+	var result strings.Builder
+	for _, r := range normalized {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			result.WriteRune(r)
+		}
+	}
+	normalized = result.String()
+
+	// Validate the result
+	if err := ValidateNickname(normalized); err != nil {
+		return "", fmt.Errorf("normalization failed: %w", err)
+	}
+
+	return normalized, nil
+}
+
+// ValidateNickname validates that a nickname conforms to §4.1 requirements:
+// - Length 3-32 characters
+// - Only contains [a-z0-9-]
+// - Must be already normalized (lowercase, NFKC)
+func ValidateNickname(nickname string) error {
+	if nickname == "" {
+		return fmt.Errorf("nickname cannot be empty")
+	}
+
+	// Check length
+	if len(nickname) < 3 {
+		return fmt.Errorf("nickname too short: minimum 3 characters, got %d", len(nickname))
+	}
+	if len(nickname) > 32 {
+		return fmt.Errorf("nickname too long: maximum 32 characters, got %d", len(nickname))
+	}
+
+	// Check allowed characters [a-z0-9-]
+	for i, r := range nickname {
+		if !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-') {
+			return fmt.Errorf("invalid character at position %d: %q (only [a-z0-9-] allowed)", i, r)
+		}
+	}
+
+	// Additional validation: nickname shouldn't be only hyphens
+	if strings.Trim(nickname, "-") == "" {
+		return fmt.Errorf("nickname cannot consist only of hyphens")
+	}
+
+	return nil
 }
 
 // SaveToFile saves the identity to a JSON file
