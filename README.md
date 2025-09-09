@@ -6,10 +6,9 @@ A decentralized peer-to-peer mesh network implementation with cryptographic iden
 
 BeeNet is a P2P mesh network that uses Ed25519/X25519 cryptographic identities with a unique "honeytag" system for human-readable identifiers. Each node has a handle in the format `<nickname>~<honeytag>` where the honeytag is derived from the node's cryptographic identity.
 
-## Current Status: Phase 1 Complete ✅
+## Current Status: Phase 2 Complete ✅
 
-**Phase 1 - Minimal Agent Kernel** has been fully implemented with:
-
+**Phase 1 - Minimal Agent Kernel** ✅ **COMPLETE**
 - ✅ Daemon lifecycle management with start/stop/retry supervisors
 - ✅ CLI with `start`, `create`, `status`, `keygen`, `handle` subcommands
 - ✅ Local control API (JSON over TCP)
@@ -17,6 +16,18 @@ BeeNet is a P2P mesh network that uses Ed25519/X25519 cryptographic identities w
 - ✅ Nickname normalization and validation per specification
 - ✅ Identity generation and handle computation
 - ✅ Comprehensive test coverage
+
+**Phase 2 - Transport Layer + Application-Layer Session Security** ✅ **COMPLETE**
+- ✅ QUIC transport with TLS 1.3 and ALPN negotiation
+- ✅ TCP transport with TLS 1.3 fallback support
+- ✅ Noise IK protocol with X25519, ChaCha20-Poly1305, BLAKE3
+- ✅ Ed25519 identity binding and signature verification
+- ✅ Pre-Shared Key (PSK) authentication (optional)
+- ✅ Token-based admission control with Ed25519 signatures
+- ✅ Replay protection with sliding window mechanism
+- ✅ Double encryption: TLS + Noise IK session security
+- ✅ Comprehensive unit and integration testing
+- ✅ Production-ready error handling and validation
 
 ## Installation
 
@@ -168,6 +179,13 @@ go test -v ./...
 go test -v ./pkg/identity
 go test -v ./pkg/agent
 go test -v ./pkg/control
+
+# Run transport and security tests
+go test -v ./pkg/transport/...
+go test -v ./pkg/security/...
+
+# Run integration tests
+go test -v ./pkg/integration
 ```
 
 ### Project Structure
@@ -179,9 +197,12 @@ beenet/
 │   ├── agent/         # Agent lifecycle and state management
 │   ├── control/       # Control API server
 │   ├── identity/      # Identity generation and management
+│   ├── transport/     # Transport layer (QUIC/TCP with TLS)
+│   ├── security/      # Security layer (Noise IK protocol)
 │   ├── codec/         # CBOR encoding utilities
 │   ├── constants/     # Protocol constants
 │   └── wire/          # Wire protocol definitions
+├── pkg/integration/   # Integration tests
 ├── docs/              # Documentation and specifications
 ├── build/             # Build outputs
 └── Makefile          # Build automation
@@ -191,15 +212,22 @@ beenet/
 
 - **Agent**: Manages daemon lifecycle with supervisor pattern
 - **Identity**: Ed25519 key generation, BID computation, honeytag derivation
+- **Transport**: QUIC/TCP transports with TLS 1.3 and ALPN negotiation
+- **Security**: Noise IK protocol with PSK and token-based admission control
 - **Control API**: Local JSON-based API for agent interaction
 - **CLI**: User-facing command-line interface
 
 ## Security
 
-- Identity keys stored in `~/.bee/identity.json` with `0600` permissions
-- Identity directory created with `0700` permissions
-- No network exposure by default (control API is localhost-only)
-- Cryptographic identities use Ed25519 signatures and X25519 key exchange
+- **Identity Protection**: Keys stored in `~/.bee/identity.json` with `0600` permissions
+- **Directory Security**: Identity directory created with `0700` permissions
+- **Local API Only**: Control API is localhost-only by default
+- **Cryptographic Primitives**: Ed25519 signatures, X25519 key exchange
+- **Transport Security**: TLS 1.3 with perfect forward secrecy
+- **Session Security**: Noise IK protocol with ChaCha20-Poly1305 encryption
+- **Authentication**: Optional PSK and Ed25519 token-based admission control
+- **Replay Protection**: Sliding window mechanism with sequence tracking
+- **Double Encryption**: TLS transport + Noise application layer security
 
 ## Roadmap
 
@@ -210,19 +238,29 @@ beenet/
 - [x] Persistent keystore
 - [x] Identity and handle generation
 
-### Phase 2: DHT & Presence (Planned)
+### Phase 2: Transport Layer + Application-Layer Session Security ✅ **COMPLETE**
+- [x] QUIC transport with TLS 1.3 and ALPN negotiation
+- [x] TCP transport with TLS 1.3 fallback support
+- [x] Noise IK protocol implementation
+- [x] Ed25519 identity binding and verification
+- [x] Pre-Shared Key (PSK) authentication
+- [x] Token-based admission control
+- [x] Replay protection and sequence tracking
+- [x] Comprehensive testing and documentation
+
+### Phase 3: DHT & Presence (Planned)
 - [ ] Distributed Hash Table implementation
 - [ ] Peer discovery and presence
 - [ ] Network topology management
 - [ ] Basic mesh connectivity
 
-### Phase 3: Messaging (Planned)
+### Phase 4: Messaging (Planned)
 - [ ] Direct peer messaging
 - [ ] Message routing
 - [ ] Delivery guarantees
 - [ ] Message persistence
 
-### Phase 4: Swarms (Planned)
+### Phase 5: Swarms (Planned)
 - [ ] Swarm creation and management
 - [ ] Group messaging
 - [ ] Swarm discovery
@@ -248,9 +286,11 @@ beenet/
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Specification
+## Documentation
 
-For detailed protocol specifications, see the [BeeNet Specification](docs/beenet_spec.md).
+- **Protocol Specification**: [BeeNet Specification](docs/beenet_spec.md)
+- **Phase 2 Implementation**: [Transport & Security Guide](docs/phase2-transport-security.md)
+- **API Reference**: [API Documentation](docs/api-reference.md)
 
 ## Support
 
