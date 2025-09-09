@@ -73,7 +73,7 @@ func NewSortedMap(m map[string]interface{}) *SortedMap {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	
+
 	return &SortedMap{
 		Keys:   keys,
 		Values: m,
@@ -95,13 +95,13 @@ func (sm *SortedMap) UnmarshalCBOR(data []byte) error {
 	if err := cbor.Unmarshal(data, &m); err != nil {
 		return err
 	}
-	
+
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	
+
 	sm.Keys = keys
 	sm.Values = m
 	return nil
@@ -116,17 +116,17 @@ func EncodeForSigning(v interface{}, excludeFields ...string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var m map[string]interface{}
 	if err := Unmarshal(data, &m); err != nil {
 		return nil, err
 	}
-	
+
 	// Remove excluded fields (typically "sig")
 	for _, field := range excludeFields {
 		delete(m, field)
 	}
-	
+
 	// Re-encode canonically
 	return Marshal(NewSortedMap(m))
 }

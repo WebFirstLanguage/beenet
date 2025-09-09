@@ -13,7 +13,7 @@ type RateLimiter struct {
 	capacity int           // Maximum tokens in bucket
 	refill   time.Duration // Time to refill one token
 	cleanup  time.Duration // How often to clean up old buckets
-	
+
 	// Cleanup management
 	lastCleanup time.Time
 }
@@ -42,7 +42,7 @@ func NewRateLimiter(config *RateLimiterConfig) *RateLimiter {
 	if config.Cleanup <= 0 {
 		config.Cleanup = 10 * time.Minute // Default: cleanup every 10 minutes
 	}
-	
+
 	return &RateLimiter{
 		buckets:     make(map[string]*bucket),
 		capacity:    config.Capacity,
@@ -56,15 +56,15 @@ func NewRateLimiter(config *RateLimiterConfig) *RateLimiter {
 func (rl *RateLimiter) Allow(key string) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	
+
 	now := time.Now()
-	
+
 	// Perform cleanup if needed
 	if now.Sub(rl.lastCleanup) > rl.cleanup {
 		rl.performCleanup(now)
 		rl.lastCleanup = now
 	}
-	
+
 	// Get or create bucket for this key
 	b, exists := rl.buckets[key]
 	if !exists {
@@ -75,25 +75,25 @@ func (rl *RateLimiter) Allow(key string) bool {
 		rl.buckets[key] = b
 		return true
 	}
-	
+
 	// Calculate tokens to add based on time elapsed
 	elapsed := now.Sub(b.lastSeen)
 	tokensToAdd := int(elapsed / rl.refill)
-	
+
 	// Add tokens up to capacity
 	b.tokens += tokensToAdd
 	if b.tokens > rl.capacity {
 		b.tokens = rl.capacity
 	}
-	
+
 	b.lastSeen = now
-	
+
 	// Check if we have tokens available
 	if b.tokens > 0 {
 		b.tokens--
 		return true
 	}
-	
+
 	return false
 }
 
@@ -101,22 +101,22 @@ func (rl *RateLimiter) Allow(key string) bool {
 func (rl *RateLimiter) GetTokens(key string) int {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	
+
 	b, exists := rl.buckets[key]
 	if !exists {
 		return rl.capacity
 	}
-	
+
 	// Calculate current tokens
 	now := time.Now()
 	elapsed := now.Sub(b.lastSeen)
 	tokensToAdd := int(elapsed / rl.refill)
-	
+
 	tokens := b.tokens + tokensToAdd
 	if tokens > rl.capacity {
 		tokens = rl.capacity
 	}
-	
+
 	return tokens
 }
 
@@ -124,7 +124,7 @@ func (rl *RateLimiter) GetTokens(key string) int {
 func (rl *RateLimiter) Reset(key string) {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	
+
 	delete(rl.buckets, key)
 }
 
@@ -132,7 +132,7 @@ func (rl *RateLimiter) Reset(key string) {
 func (rl *RateLimiter) Clear() {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	
+
 	rl.buckets = make(map[string]*bucket)
 }
 
@@ -140,7 +140,7 @@ func (rl *RateLimiter) Clear() {
 func (rl *RateLimiter) GetStats() map[string]interface{} {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	
+
 	return map[string]interface{}{
 		"total_buckets": len(rl.buckets),
 		"capacity":      rl.capacity,
@@ -152,7 +152,7 @@ func (rl *RateLimiter) GetStats() map[string]interface{} {
 func (rl *RateLimiter) performCleanup(now time.Time) {
 	// Remove buckets that haven't been used in the last hour
 	cutoff := now.Add(-1 * time.Hour)
-	
+
 	for key, b := range rl.buckets {
 		if b.lastSeen.Before(cutoff) {
 			delete(rl.buckets, key)
@@ -163,7 +163,7 @@ func (rl *RateLimiter) performCleanup(now time.Time) {
 // DHT Security Manager
 type SecurityManager struct {
 	rateLimiter *RateLimiter
-	
+
 	// Blacklist management
 	blacklist map[string]time.Time // BID -> expiry time
 	mu        sync.RWMutex
@@ -179,12 +179,12 @@ func NewSecurityManager(config *SecurityConfig) *SecurityManager {
 	rateLimiterConfig := config.RateLimiter
 	if rateLimiterConfig == nil {
 		rateLimiterConfig = &RateLimiterConfig{
-			Capacity: 20,                // 20 requests per bucket
-			Refill:   30 * time.Second,  // 1 request every 30 seconds
-			Cleanup:  10 * time.Minute,  // Cleanup every 10 minutes
+			Capacity: 20,               // 20 requests per bucket
+			Refill:   30 * time.Second, // 1 request every 30 seconds
+			Cleanup:  10 * time.Minute, // Cleanup every 10 minutes
 		}
 	}
-	
+
 	return &SecurityManager{
 		rateLimiter: NewRateLimiter(rateLimiterConfig),
 		blacklist:   make(map[string]time.Time),
@@ -194,7 +194,7 @@ func NewSecurityManager(config *SecurityConfig) *SecurityManager {
 // AllowRequest checks if a request from the given BID should be allowed
 func (sm *SecurityManager) AllowRequest(bid string) bool {
 	sm.mu.RLock()
-	
+
 	// Check blacklist first
 	if expiry, blacklisted := sm.blacklist[bid]; blacklisted {
 		if time.Now().Before(expiry) {
@@ -208,9 +208,9 @@ func (sm *SecurityManager) AllowRequest(bid string) bool {
 		sm.mu.Unlock()
 		sm.mu.RLock()
 	}
-	
+
 	sm.mu.RUnlock()
-	
+
 	// Check rate limit
 	return sm.rateLimiter.Allow(bid)
 }
@@ -219,7 +219,7 @@ func (sm *SecurityManager) AllowRequest(bid string) bool {
 func (sm *SecurityManager) BlacklistBID(bid string, duration time.Duration) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	
+
 	sm.blacklist[bid] = time.Now().Add(duration)
 }
 
@@ -227,12 +227,12 @@ func (sm *SecurityManager) BlacklistBID(bid string, duration time.Duration) {
 func (sm *SecurityManager) IsBlacklisted(bid string) bool {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
-	
+
 	expiry, exists := sm.blacklist[bid]
 	if !exists {
 		return false
 	}
-	
+
 	if time.Now().After(expiry) {
 		// Expired, remove from blacklist
 		go func() {
@@ -242,7 +242,7 @@ func (sm *SecurityManager) IsBlacklisted(bid string) bool {
 		}()
 		return false
 	}
-	
+
 	return true
 }
 
@@ -250,7 +250,7 @@ func (sm *SecurityManager) IsBlacklisted(bid string) bool {
 func (sm *SecurityManager) GetStats() map[string]interface{} {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
-	
+
 	// Count active blacklist entries
 	activeBlacklist := 0
 	now := time.Now()
@@ -259,18 +259,18 @@ func (sm *SecurityManager) GetStats() map[string]interface{} {
 			activeBlacklist++
 		}
 	}
-	
+
 	stats := map[string]interface{}{
 		"active_blacklist": activeBlacklist,
 		"total_blacklist":  len(sm.blacklist),
 	}
-	
+
 	// Add rate limiter stats
 	rateLimiterStats := sm.rateLimiter.GetStats()
 	for k, v := range rateLimiterStats {
 		stats["rate_limiter_"+k] = v
 	}
-	
+
 	return stats
 }
 
@@ -278,7 +278,7 @@ func (sm *SecurityManager) GetStats() map[string]interface{} {
 func (sm *SecurityManager) CleanupExpired() {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	
+
 	now := time.Now()
 	for bid, expiry := range sm.blacklist {
 		if now.After(expiry) {

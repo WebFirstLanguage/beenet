@@ -19,10 +19,10 @@ func NewReplayWindow(windowSize uint64) *ReplayWindow {
 	if windowSize == 0 {
 		windowSize = 64 // Default window size
 	}
-	
+
 	// Calculate number of uint64s needed for the bitmap
 	bitmapSize := (windowSize + 63) / 64
-	
+
 	return &ReplayWindow{
 		windowSize: windowSize,
 		bitmap:     make([]uint64, bitmapSize),
@@ -34,12 +34,12 @@ func NewReplayWindow(windowSize uint64) *ReplayWindow {
 func (rw *ReplayWindow) AcceptSequence(sequence uint64) bool {
 	rw.mu.Lock()
 	defer rw.mu.Unlock()
-	
+
 	// Reject sequence number 0 (invalid)
 	if sequence == 0 {
 		return false
 	}
-	
+
 	// If this is the first sequence or a new highest sequence
 	if sequence > rw.lastSequence {
 		// Slide the window if necessary
@@ -48,19 +48,19 @@ func (rw *ReplayWindow) AcceptSequence(sequence uint64) bool {
 		rw.setBit(sequence)
 		return true
 	}
-	
+
 	// Check if sequence is within the current window
 	if rw.lastSequence-sequence >= rw.windowSize {
 		// Sequence is too old, outside the window
 		return false
 	}
-	
+
 	// Check if we've already seen this sequence
 	if rw.getBit(sequence) {
 		// Duplicate sequence - replay attack
 		return false
 	}
-	
+
 	// Accept the sequence and mark it as seen
 	rw.setBit(sequence)
 	return true
@@ -71,9 +71,9 @@ func (rw *ReplayWindow) slideWindow(newSequence uint64) {
 	if newSequence <= rw.lastSequence {
 		return
 	}
-	
+
 	shift := newSequence - rw.lastSequence
-	
+
 	// If the shift is larger than the window, clear everything
 	if shift >= rw.windowSize {
 		for i := range rw.bitmap {
@@ -81,7 +81,7 @@ func (rw *ReplayWindow) slideWindow(newSequence uint64) {
 		}
 		return
 	}
-	
+
 	// Shift the bitmap
 	rw.shiftBitmap(shift)
 }
@@ -91,10 +91,10 @@ func (rw *ReplayWindow) shiftBitmap(shift uint64) {
 	if shift == 0 {
 		return
 	}
-	
+
 	wordShift := shift / 64
 	bitShift := shift % 64
-	
+
 	// Shift by whole words first
 	if wordShift > 0 {
 		for i := len(rw.bitmap) - 1; i >= int(wordShift); i-- {
@@ -104,7 +104,7 @@ func (rw *ReplayWindow) shiftBitmap(shift uint64) {
 			rw.bitmap[i] = 0
 		}
 	}
-	
+
 	// Shift by remaining bits
 	if bitShift > 0 {
 		carry := uint64(0)
@@ -121,15 +121,15 @@ func (rw *ReplayWindow) setBit(sequence uint64) {
 	if sequence > rw.lastSequence {
 		return
 	}
-	
+
 	offset := rw.lastSequence - sequence
 	if offset >= rw.windowSize {
 		return
 	}
-	
+
 	wordIndex := offset / 64
 	bitIndex := offset % 64
-	
+
 	if int(wordIndex) < len(rw.bitmap) {
 		rw.bitmap[wordIndex] |= (1 << bitIndex)
 	}
@@ -140,26 +140,26 @@ func (rw *ReplayWindow) getBit(sequence uint64) bool {
 	if sequence > rw.lastSequence {
 		return false
 	}
-	
+
 	offset := rw.lastSequence - sequence
 	if offset >= rw.windowSize {
 		return false
 	}
-	
+
 	wordIndex := offset / 64
 	bitIndex := offset % 64
-	
+
 	if int(wordIndex) < len(rw.bitmap) {
 		return (rw.bitmap[wordIndex] & (1 << bitIndex)) != 0
 	}
-	
+
 	return false
 }
 
 // SequenceTracker manages sequence numbers for both sending and receiving
 type SequenceTracker struct {
 	mu           sync.Mutex
-	sendSequence uint64       // Next sequence number to send
+	sendSequence uint64        // Next sequence number to send
 	recvWindow   *ReplayWindow // Replay protection for received messages
 }
 
@@ -175,7 +175,7 @@ func NewSequenceTracker() *SequenceTracker {
 func (st *SequenceTracker) NextSendSequence() uint64 {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	
+
 	st.sendSequence++
 	return st.sendSequence
 }

@@ -32,12 +32,12 @@ type Supervisor struct {
 	mu     sync.RWMutex
 	agent  *Agent
 	config SupervisorConfig
-	
+
 	// Lifecycle management
-	ctx       context.Context
-	cancel    context.CancelFunc
-	done      chan struct{}
-	running   bool
+	ctx        context.Context
+	cancel     context.CancelFunc
+	done       chan struct{}
+	running    bool
 	retryCount int
 }
 
@@ -59,24 +59,24 @@ func NewSupervisorWithConfig(agent *Agent, config SupervisorConfig) *Supervisor 
 func (s *Supervisor) Start(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.running {
 		return fmt.Errorf("supervisor is already running")
 	}
-	
+
 	s.ctx, s.cancel = context.WithCancel(ctx)
 	s.running = true
 	s.retryCount = 0
-	
+
 	// Start the agent
 	if err := s.agent.Start(s.ctx); err != nil {
 		s.running = false
 		return fmt.Errorf("failed to start agent: %w", err)
 	}
-	
+
 	// Start supervisor loop
 	go s.supervise()
-	
+
 	return nil
 }
 
@@ -84,21 +84,21 @@ func (s *Supervisor) Start(ctx context.Context) error {
 func (s *Supervisor) Stop(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if !s.running {
 		return fmt.Errorf("supervisor is not running")
 	}
-	
+
 	// Cancel supervisor context
 	if s.cancel != nil {
 		s.cancel()
 	}
-	
+
 	// Stop the agent
 	if err := s.agent.Stop(ctx); err != nil {
 		return fmt.Errorf("failed to stop agent: %w", err)
 	}
-	
+
 	// Wait for supervisor to finish
 	select {
 	case <-s.done:
@@ -107,7 +107,7 @@ func (s *Supervisor) Stop(ctx context.Context) error {
 		// Timeout waiting for supervisor to stop
 		return fmt.Errorf("timeout waiting for supervisor to stop")
 	}
-	
+
 	s.running = false
 	return nil
 }
@@ -129,10 +129,10 @@ func (s *Supervisor) RetryCount() int {
 // supervise is the main supervisor loop
 func (s *Supervisor) supervise() {
 	defer close(s.done)
-	
+
 	ticker := time.NewTicker(s.config.HealthCheckInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-s.ctx.Done():
@@ -146,24 +146,24 @@ func (s *Supervisor) supervise() {
 // checkAgentHealth checks if the agent is healthy and restarts if needed
 func (s *Supervisor) checkAgentHealth() {
 	state := s.agent.State()
-	
+
 	// If agent is in error state or stopped unexpectedly, try to restart
 	if state == StateError || (state == StateStopped && s.running) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		
+
 		if s.retryCount >= s.config.MaxRetries {
 			fmt.Printf("Supervisor: Maximum retries (%d) exceeded, giving up\n", s.config.MaxRetries)
 			return
 		}
-		
+
 		s.retryCount++
-		fmt.Printf("Supervisor: Agent unhealthy (state: %s), attempting restart %d/%d\n", 
+		fmt.Printf("Supervisor: Agent unhealthy (state: %s), attempting restart %d/%d\n",
 			state, s.retryCount, s.config.MaxRetries)
-		
+
 		// Wait before retry
 		time.Sleep(s.config.RetryDelay)
-		
+
 		// Try to restart the agent
 		if err := s.agent.Start(s.ctx); err != nil {
 			fmt.Printf("Supervisor: Failed to restart agent: %v\n", err)

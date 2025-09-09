@@ -10,8 +10,9 @@ import (
 
 // CompareNameRecords compares two NameRecords and returns:
 // -1 if a should be preferred over b
-//  0 if they are equivalent
-//  1 if b should be preferred over a
+//
+//	0 if they are equivalent
+//	1 if b should be preferred over a
 func CompareNameRecords(a, b *NameRecord) int {
 	// Rule 1: Higher version wins
 	if a.Ver > b.Ver {

@@ -229,7 +229,7 @@ func TestFrameHelpers(t *testing.T) {
 	now := time.Now()
 	frame := NewBaseFrame(constants.KindPing, "test", 1, nil)
 	frameTime := frame.GetTimestamp()
-	
+
 	// Should be within 1 second of now
 	if frameTime.Sub(now).Abs() > time.Second {
 		t.Errorf("Frame timestamp %v too far from now %v", frameTime, now)

@@ -11,11 +11,11 @@ import (
 // TestAgentStates tests the agent state machine transitions
 func TestAgentStates(t *testing.T) {
 	tests := []struct {
-		name           string
-		initialState   State
-		action         func(*Agent) error
-		expectedState  State
-		expectError    bool
+		name          string
+		initialState  State
+		action        func(*Agent) error
+		expectedState State
+		expectError   bool
 	}{
 		{
 			name:          "start_from_stopped",

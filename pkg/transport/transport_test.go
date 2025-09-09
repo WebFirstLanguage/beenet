@@ -106,16 +106,16 @@ func (m *MockConn) ConnectionState() tls.ConnectionState {
 
 func TestRegistry(t *testing.T) {
 	registry := NewRegistry()
-	
+
 	// Test empty registry
 	if len(registry.List()) != 0 {
 		t.Error("Expected empty registry")
 	}
-	
+
 	// Test registration
 	mockTransport := &MockTransport{name: "mock", defaultPort: 1234}
 	registry.Register("mock", mockTransport)
-	
+
 	// Test retrieval
 	transport, ok := registry.Get("mock")
 	if !ok {
@@ -127,13 +127,13 @@ func TestRegistry(t *testing.T) {
 	if transport.DefaultPort() != 1234 {
 		t.Errorf("Expected default port 1234, got %d", transport.DefaultPort())
 	}
-	
+
 	// Test list
 	names := registry.List()
 	if len(names) != 1 || names[0] != "mock" {
 		t.Errorf("Expected list ['mock'], got %v", names)
 	}
-	
+
 	// Test non-existent transport
 	_, ok = registry.Get("nonexistent")
 	if ok {
@@ -143,7 +143,7 @@ func TestRegistry(t *testing.T) {
 
 func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
-	
+
 	if len(config.ALPNProtocols) == 0 {
 		t.Error("Expected ALPN protocols to be set")
 	}
@@ -164,21 +164,21 @@ func TestDefaultConfig(t *testing.T) {
 func TestTransportInterface(t *testing.T) {
 	transport := &MockTransport{name: "test", defaultPort: 8080}
 	ctx := context.Background()
-	
+
 	// Test Listen
 	listener, err := transport.Listen(ctx, "localhost:8080", nil)
 	if err != nil {
 		t.Fatalf("Failed to listen: %v", err)
 	}
 	defer listener.Close()
-	
+
 	// Test Dial
 	conn, err := transport.Dial(ctx, "localhost:8080", nil)
 	if err != nil {
 		t.Fatalf("Failed to dial: %v", err)
 	}
 	defer conn.Close()
-	
+
 	// Test connection operations
 	data := []byte("test data")
 	n, err := conn.Write(data)
@@ -188,7 +188,7 @@ func TestTransportInterface(t *testing.T) {
 	if n != len(data) {
 		t.Errorf("Expected to write %d bytes, wrote %d", len(data), n)
 	}
-	
+
 	// Test listener operations
 	if listener.Addr() == nil {
 		t.Error("Expected listener address to be set")
@@ -197,7 +197,7 @@ func TestTransportInterface(t *testing.T) {
 
 func TestConnectionLifecycle(t *testing.T) {
 	conn := &MockConn{addr: "localhost:8080"}
-	
+
 	// Test initial state
 	if conn.LocalAddr() == nil {
 		t.Error("Expected local address to be set")
@@ -205,7 +205,7 @@ func TestConnectionLifecycle(t *testing.T) {
 	if conn.RemoteAddr() == nil {
 		t.Error("Expected remote address to be set")
 	}
-	
+
 	// Test deadline operations
 	deadline := time.Now().Add(time.Second)
 	if err := conn.SetDeadline(deadline); err != nil {
@@ -217,12 +217,12 @@ func TestConnectionLifecycle(t *testing.T) {
 	if err := conn.SetWriteDeadline(deadline); err != nil {
 		t.Errorf("Failed to set write deadline: %v", err)
 	}
-	
+
 	// Test close
 	if err := conn.Close(); err != nil {
 		t.Errorf("Failed to close connection: %v", err)
 	}
-	
+
 	// Test operations after close
 	_, err := conn.Write([]byte("test"))
 	if err == nil {

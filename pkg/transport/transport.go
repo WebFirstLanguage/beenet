@@ -13,13 +13,13 @@ import (
 type Transport interface {
 	// Listen starts listening for incoming connections on the given address
 	Listen(ctx context.Context, addr string, tlsConfig *tls.Config) (Listener, error)
-	
+
 	// Dial establishes a connection to the given address
 	Dial(ctx context.Context, addr string, tlsConfig *tls.Config) (Conn, error)
-	
+
 	// Name returns the transport name (e.g., "quic", "tcp")
 	Name() string
-	
+
 	// DefaultPort returns the default port for this transport
 	DefaultPort() int
 }
@@ -28,10 +28,10 @@ type Transport interface {
 type Listener interface {
 	// Accept waits for and returns the next connection
 	Accept(ctx context.Context) (Conn, error)
-	
+
 	// Close closes the listener
 	Close() error
-	
+
 	// Addr returns the listener's network address
 	Addr() net.Addr
 }
@@ -40,28 +40,28 @@ type Listener interface {
 type Conn interface {
 	// Read reads data from the connection
 	Read(b []byte) (n int, err error)
-	
+
 	// Write writes data to the connection
 	Write(b []byte) (n int, err error)
-	
+
 	// Close closes the connection
 	Close() error
-	
+
 	// LocalAddr returns the local network address
 	LocalAddr() net.Addr
-	
+
 	// RemoteAddr returns the remote network address
 	RemoteAddr() net.Addr
-	
+
 	// SetDeadline sets the read and write deadlines
 	SetDeadline(t time.Time) error
-	
+
 	// SetReadDeadline sets the read deadline
 	SetReadDeadline(t time.Time) error
-	
+
 	// SetWriteDeadline sets the write deadline
 	SetWriteDeadline(t time.Time) error
-	
+
 	// ConnectionState returns the TLS connection state
 	ConnectionState() tls.ConnectionState
 }
@@ -70,16 +70,16 @@ type Conn interface {
 type Config struct {
 	// TLS configuration
 	TLSConfig *tls.Config
-	
+
 	// ALPN protocols to negotiate
 	ALPNProtocols []string
-	
+
 	// Connection timeout
 	ConnectTimeout time.Duration
-	
+
 	// Keep-alive settings
 	KeepAlive time.Duration
-	
+
 	// Maximum idle timeout
 	MaxIdleTimeout time.Duration
 }

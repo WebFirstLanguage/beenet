@@ -13,7 +13,7 @@ func TestCIDSerialization(t *testing.T) {
 	for i := range hash {
 		hash[i] = byte(i)
 	}
-	
+
 	original := CID{
 		Hash:   hash,
 		String: "test-cid-string",
@@ -36,13 +36,13 @@ func TestCIDSerialization(t *testing.T) {
 	if len(unmarshaled.Hash) != len(original.Hash) {
 		t.Errorf("Hash length mismatch: got %d, want %d", len(unmarshaled.Hash), len(original.Hash))
 	}
-	
+
 	for i, b := range original.Hash {
 		if unmarshaled.Hash[i] != b {
 			t.Errorf("Hash byte %d mismatch: got %d, want %d", i, unmarshaled.Hash[i], b)
 		}
 	}
-	
+
 	if unmarshaled.String != original.String {
 		t.Errorf("String mismatch: got %s, want %s", unmarshaled.String, original.String)
 	}
@@ -54,7 +54,7 @@ func TestChunkSerialization(t *testing.T) {
 	for i := range hash {
 		hash[i] = byte(i % 256)
 	}
-	
+
 	original := Chunk{
 		CID: CID{
 			Hash:   hash,
@@ -82,11 +82,11 @@ func TestChunkSerialization(t *testing.T) {
 	if string(unmarshaled.Data) != string(original.Data) {
 		t.Errorf("Data mismatch: got %s, want %s", string(unmarshaled.Data), string(original.Data))
 	}
-	
+
 	if unmarshaled.Size != original.Size {
 		t.Errorf("Size mismatch: got %d, want %d", unmarshaled.Size, original.Size)
 	}
-	
+
 	if unmarshaled.Offset != original.Offset {
 		t.Errorf("Offset mismatch: got %d, want %d", unmarshaled.Offset, original.Offset)
 	}
@@ -100,12 +100,12 @@ func TestManifestSerialization(t *testing.T) {
 		hash1[i] = byte(i)
 		hash2[i] = byte(i + 32)
 	}
-	
+
 	original := Manifest{
-		Version:     1,
-		FileSize:    2048,
-		ChunkSize:   1024,
-		ChunkCount:  2,
+		Version:    1,
+		FileSize:   2048,
+		ChunkSize:  1024,
+		ChunkCount: 2,
 		Chunks: []ChunkInfo{
 			{
 				CID:    CID{Hash: hash1, String: "chunk1"},
@@ -140,27 +140,27 @@ func TestManifestSerialization(t *testing.T) {
 	if unmarshaled.Version != original.Version {
 		t.Errorf("Version mismatch: got %d, want %d", unmarshaled.Version, original.Version)
 	}
-	
+
 	if unmarshaled.FileSize != original.FileSize {
 		t.Errorf("FileSize mismatch: got %d, want %d", unmarshaled.FileSize, original.FileSize)
 	}
-	
+
 	if unmarshaled.ChunkSize != original.ChunkSize {
 		t.Errorf("ChunkSize mismatch: got %d, want %d", unmarshaled.ChunkSize, original.ChunkSize)
 	}
-	
+
 	if unmarshaled.ChunkCount != original.ChunkCount {
 		t.Errorf("ChunkCount mismatch: got %d, want %d", unmarshaled.ChunkCount, original.ChunkCount)
 	}
-	
+
 	if len(unmarshaled.Chunks) != len(original.Chunks) {
 		t.Errorf("Chunks length mismatch: got %d, want %d", len(unmarshaled.Chunks), len(original.Chunks))
 	}
-	
+
 	if unmarshaled.ContentType != original.ContentType {
 		t.Errorf("ContentType mismatch: got %s, want %s", unmarshaled.ContentType, original.ContentType)
 	}
-	
+
 	if unmarshaled.Filename != original.Filename {
 		t.Errorf("Filename mismatch: got %s, want %s", unmarshaled.Filename, original.Filename)
 	}
@@ -172,7 +172,7 @@ func TestProvideRecordSerialization(t *testing.T) {
 	for i := range hash {
 		hash[i] = byte(i)
 	}
-	
+
 	original := ProvideRecord{
 		CID: CID{
 			Hash:   hash,
@@ -202,17 +202,17 @@ func TestProvideRecordSerialization(t *testing.T) {
 	if unmarshaled.Provider != original.Provider {
 		t.Errorf("Provider mismatch: got %s, want %s", unmarshaled.Provider, original.Provider)
 	}
-	
+
 	if len(unmarshaled.Addresses) != len(original.Addresses) {
 		t.Errorf("Addresses length mismatch: got %d, want %d", len(unmarshaled.Addresses), len(original.Addresses))
 	}
-	
+
 	for i, addr := range original.Addresses {
 		if unmarshaled.Addresses[i] != addr {
 			t.Errorf("Address %d mismatch: got %s, want %s", i, unmarshaled.Addresses[i], addr)
 		}
 	}
-	
+
 	if unmarshaled.TTL != original.TTL {
 		t.Errorf("TTL mismatch: got %d, want %d", unmarshaled.TTL, original.TTL)
 	}
@@ -220,23 +220,23 @@ func TestProvideRecordSerialization(t *testing.T) {
 
 func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
-	
+
 	if config.ChunkSize != 1024*1024 {
 		t.Errorf("Default ChunkSize mismatch: got %d, want %d", config.ChunkSize, 1024*1024)
 	}
-	
+
 	if config.ConcurrentFetches != 4 {
 		t.Errorf("Default ConcurrentFetches mismatch: got %d, want %d", config.ConcurrentFetches, 4)
 	}
-	
+
 	if config.FetchTimeout != 30*time.Second {
 		t.Errorf("Default FetchTimeout mismatch: got %v, want %v", config.FetchTimeout, 30*time.Second)
 	}
-	
+
 	if config.ProvideRecordTTL != 3600 {
 		t.Errorf("Default ProvideRecordTTL mismatch: got %d, want %d", config.ProvideRecordTTL, 3600)
 	}
-	
+
 	if !config.EnableIntegrityCheck {
 		t.Error("Default EnableIntegrityCheck should be true")
 	}

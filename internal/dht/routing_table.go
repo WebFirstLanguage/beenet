@@ -18,12 +18,12 @@ func NewRoutingTable(localID NodeID) *RoutingTable {
 	rt := &RoutingTable{
 		localID: localID,
 	}
-	
+
 	// Initialize all buckets
 	for i := 0; i < 256; i++ {
 		rt.buckets[i] = NewBucket()
 	}
-	
+
 	return rt
 }
 
@@ -32,7 +32,7 @@ func (rt *RoutingTable) Add(node *Node) bool {
 	if node.ID == rt.localID {
 		return false // Don't add ourselves
 	}
-	
+
 	bucketIndex := rt.getBucketIndex(node.ID)
 	return rt.buckets[bucketIndex].Add(node)
 }
@@ -42,7 +42,7 @@ func (rt *RoutingTable) Remove(nodeID NodeID) bool {
 	if nodeID == rt.localID {
 		return false // Don't remove ourselves
 	}
-	
+
 	bucketIndex := rt.getBucketIndex(nodeID)
 	return rt.buckets[bucketIndex].Remove(nodeID)
 }
@@ -52,7 +52,7 @@ func (rt *RoutingTable) Get(nodeID NodeID) *Node {
 	if nodeID == rt.localID {
 		return nil // Don't return ourselves
 	}
-	
+
 	bucketIndex := rt.getBucketIndex(nodeID)
 	return rt.buckets[bucketIndex].Get(nodeID)
 }
@@ -61,19 +61,19 @@ func (rt *RoutingTable) Get(nodeID NodeID) *Node {
 func (rt *RoutingTable) GetClosest(target NodeID, k int) []*Node {
 	rt.mu.RLock()
 	defer rt.mu.RUnlock()
-	
+
 	var candidates []*Node
-	
+
 	// Start with the bucket that should contain the target
 	targetBucket := rt.getBucketIndex(target)
-	
+
 	// Collect nodes from buckets, starting with the target bucket and expanding outward
 	collected := make(map[int]bool)
-	
+
 	// Add nodes from target bucket first
 	candidates = append(candidates, rt.buckets[targetBucket].GetAll()...)
 	collected[targetBucket] = true
-	
+
 	// Expand outward from target bucket
 	for distance := 1; len(candidates) < k && distance < 256; distance++ {
 		// Check bucket above
@@ -81,14 +81,14 @@ func (rt *RoutingTable) GetClosest(target NodeID, k int) []*Node {
 			candidates = append(candidates, rt.buckets[targetBucket+distance].GetAll()...)
 			collected[targetBucket+distance] = true
 		}
-		
+
 		// Check bucket below
 		if targetBucket-distance >= 0 && !collected[targetBucket-distance] {
 			candidates = append(candidates, rt.buckets[targetBucket-distance].GetAll()...)
 			collected[targetBucket-distance] = true
 		}
 	}
-	
+
 	// If we still don't have enough, collect from all remaining buckets
 	if len(candidates) < k {
 		for i := 0; i < 256; i++ {
@@ -97,7 +97,7 @@ func (rt *RoutingTable) GetClosest(target NodeID, k int) []*Node {
 			}
 		}
 	}
-	
+
 	// Sort candidates by distance to target and return top k
 	return rt.sortByDistance(candidates, target, k)
 }
@@ -106,7 +106,7 @@ func (rt *RoutingTable) GetClosest(target NodeID, k int) []*Node {
 func (rt *RoutingTable) GetAllNodes() []*Node {
 	rt.mu.RLock()
 	defer rt.mu.RUnlock()
-	
+
 	var nodes []*Node
 	for _, bucket := range rt.buckets {
 		nodes = append(nodes, bucket.GetAll()...)
@@ -118,7 +118,7 @@ func (rt *RoutingTable) GetAllNodes() []*Node {
 func (rt *RoutingTable) Size() int {
 	rt.mu.RLock()
 	defer rt.mu.RUnlock()
-	
+
 	total := 0
 	for _, bucket := range rt.buckets {
 		total += bucket.Size()
@@ -130,7 +130,7 @@ func (rt *RoutingTable) Size() int {
 func (rt *RoutingTable) RemoveStale(timeout time.Duration) int {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
-	
+
 	total := 0
 	for _, bucket := range rt.buckets {
 		total += bucket.RemoveStale(timeout)
@@ -142,7 +142,7 @@ func (rt *RoutingTable) RemoveStale(timeout time.Duration) int {
 func (rt *RoutingTable) GetBucketInfo() map[int]int {
 	rt.mu.RLock()
 	defer rt.mu.RUnlock()
-	
+
 	info := make(map[int]int)
 	for i, bucket := range rt.buckets {
 		size := bucket.Size()
@@ -157,7 +157,7 @@ func (rt *RoutingTable) GetBucketInfo() map[int]int {
 func (rt *RoutingTable) getBucketIndex(nodeID NodeID) int {
 	// Calculate XOR distance
 	distance := rt.localID.Distance(nodeID)
-	
+
 	// Find the position of the most significant bit
 	for i := 0; i < 32; i++ {
 		if distance[i] != 0 {
@@ -169,7 +169,7 @@ func (rt *RoutingTable) getBucketIndex(nodeID NodeID) int {
 			}
 		}
 	}
-	
+
 	// If distance is 0 (shouldn't happen as we filter out self), use bucket 0
 	return 0
 }
@@ -179,13 +179,13 @@ func (rt *RoutingTable) sortByDistance(nodes []*Node, target NodeID, k int) []*N
 	if len(nodes) == 0 {
 		return nil
 	}
-	
+
 	// Create distance pairs for sorting
 	type distancePair struct {
 		node     *Node
 		distance NodeID
 	}
-	
+
 	pairs := make([]distancePair, len(nodes))
 	for i, node := range nodes {
 		pairs[i] = distancePair{
@@ -193,28 +193,28 @@ func (rt *RoutingTable) sortByDistance(nodes []*Node, target NodeID, k int) []*N
 			distance: node.ID.Distance(target),
 		}
 	}
-	
+
 	// Sort by distance (insertion sort for small arrays, otherwise use a more efficient sort)
 	for i := 1; i < len(pairs); i++ {
 		key := pairs[i]
 		j := i - 1
-		
+
 		for j >= 0 && key.distance.Less(pairs[j].distance) {
 			pairs[j+1] = pairs[j]
 			j--
 		}
 		pairs[j+1] = key
 	}
-	
+
 	// Extract nodes and return up to k
 	if k > len(pairs) {
 		k = len(pairs)
 	}
-	
+
 	result := make([]*Node, k)
 	for i := 0; i < k; i++ {
 		result[i] = pairs[i].node
 	}
-	
+
 	return result
 }

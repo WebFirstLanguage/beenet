@@ -219,7 +219,7 @@ func TestVerifyChunkSequence(t *testing.T) {
 	if len(chunks) > 1 {
 		gappedChunks := make([]*Chunk, len(chunks))
 		copy(gappedChunks, chunks)
-		
+
 		// Create a gap by modifying the second chunk's offset
 		gappedChunks[1] = &Chunk{
 			CID:    chunks[1].CID,
@@ -238,7 +238,7 @@ func TestVerifyChunkSequence(t *testing.T) {
 	if len(chunks) > 0 {
 		zeroSizeChunks := make([]*Chunk, len(chunks))
 		copy(zeroSizeChunks, chunks)
-		
+
 		zeroSizeChunks[0] = &Chunk{
 			CID:    chunks[0].CID,
 			Data:   chunks[0].Data,
@@ -285,7 +285,7 @@ func TestVerifyManifestChunkConsistency(t *testing.T) {
 	if len(chunks) > 0 {
 		missingChunks := make([]*Chunk, len(chunks))
 		copy(missingChunks, chunks)
-		
+
 		// Replace first chunk with a different CID
 		missingChunks[0] = &Chunk{
 			CID:    NewCID([]byte("different data")),
@@ -304,7 +304,7 @@ func TestVerifyManifestChunkConsistency(t *testing.T) {
 	if len(chunks) > 0 {
 		sizeChunks := make([]*Chunk, len(chunks))
 		copy(sizeChunks, chunks)
-		
+
 		sizeChunks[0] = &Chunk{
 			CID:    chunks[0].CID,
 			Data:   chunks[0].Data,

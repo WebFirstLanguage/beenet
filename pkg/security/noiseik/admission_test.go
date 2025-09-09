@@ -229,6 +229,9 @@ func TestHandshakeWithPSK(t *testing.T) {
 
 	swarmID := "test-swarm-psk"
 
+	// Register the client's public key so the server can verify signatures
+	RegisterTestKey(clientIdentity.BID(), clientIdentity.SigningPublicKey)
+
 	// Create PSK configuration
 	psk := make([]byte, 32)
 	rand.Read(psk)

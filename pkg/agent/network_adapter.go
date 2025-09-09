@@ -33,7 +33,7 @@ func (na *NetworkAdapter) SendMessage(ctx context.Context, target *swim.Member, 
 
 	// Convert SWIM Member to DHT Node
 	node := dht.NewNode(target.BID, target.GetAddresses())
-	
+
 	return na.dhtNetwork.SendMessage(ctx, node, frame)
 }
 
@@ -57,7 +57,7 @@ func (na *NetworkAdapter) SendMessageToPeer(ctx context.Context, targetBID strin
 	// Create a temporary node for the target
 	// In a full implementation, we would look up the addresses from the routing table
 	node := dht.NewNode(targetBID, []string{})
-	
+
 	return na.dhtNetwork.SendMessage(ctx, node, frame)
 }
 

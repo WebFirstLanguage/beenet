@@ -8,8 +8,8 @@ import (
 
 // Error represents a Beenet protocol error as specified in §17
 type Error struct {
-	Code       uint16  `cbor:"code"`                 // Error code
-	Reason     string  `cbor:"reason"`               // Human-readable error message
+	Code       uint16  `cbor:"code"`                  // Error code
+	Reason     string  `cbor:"reason"`                // Human-readable error message
 	RetryAfter *uint32 `cbor:"retry_after,omitempty"` // Optional retry delay in seconds
 }
 
@@ -95,7 +95,7 @@ func ErrRateLimit(retryAfter uint32) *Error {
 
 // ErrVersionMismatch creates a version mismatch error
 func ErrVersionMismatch(expected, actual uint16) *Error {
-	return NewError(constants.ErrorVersionMismatch, 
+	return NewError(constants.ErrorVersionMismatch,
 		fmt.Sprintf("version mismatch: expected %d, got %d", expected, actual))
 }
 
@@ -113,19 +113,19 @@ func ErrNameLeaseExpired(name string) *Error {
 
 // ErrHandleMismatch creates a handle-mismatch error
 func ErrHandleMismatch(handle, expected string) *Error {
-	return NewError(constants.ErrorHandleMismatch, 
+	return NewError(constants.ErrorHandleMismatch,
 		fmt.Sprintf("handle mismatch: %s != %s", handle, expected))
 }
 
 // ErrNotOwner creates a not-owner error
 func ErrNotOwner(name, owner, requester string) *Error {
-	return NewError(constants.ErrorNotOwner, 
+	return NewError(constants.ErrorNotOwner,
 		fmt.Sprintf("not owner of %s: owner=%s, requester=%s", name, owner, requester))
 }
 
 // ErrDelegationMissing creates a delegation-missing error
 func ErrDelegationMissing(owner, device string) *Error {
-	return NewError(constants.ErrorDelegationMissing, 
+	return NewError(constants.ErrorDelegationMissing,
 		fmt.Sprintf("no delegation from %s to %s", owner, device))
 }
 

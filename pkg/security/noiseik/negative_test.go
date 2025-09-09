@@ -24,6 +24,9 @@ func TestProtocolVersionMismatch(t *testing.T) {
 
 	swarmID := "version-test-swarm"
 
+	// Register the client's public key so the server can verify signatures
+	RegisterTestKey(clientIdentity.BID(), clientIdentity.SigningPublicKey)
+
 	// Create handshakes
 	clientHandshake := NewHandshake(clientIdentity, swarmID)
 	serverHandshake := NewHandshake(serverIdentity, swarmID)
@@ -77,6 +80,9 @@ func TestInvalidEd25519Signatures(t *testing.T) {
 
 	swarmID := "signature-test-swarm"
 
+	// Register the client's public key so the server can verify signatures
+	RegisterTestKey(clientIdentity.BID(), clientIdentity.SigningPublicKey)
+
 	// Create handshakes
 	clientHandshake := NewHandshake(clientIdentity, swarmID)
 	serverHandshake := NewHandshake(serverIdentity, swarmID)
@@ -118,11 +124,16 @@ func TestInvalidEd25519Signatures(t *testing.T) {
 		t.Error("Server should reject ClientHello with empty signature")
 	}
 
-	// Restore original signature
-	clientHello.Proof = originalProof
+	// Create a fresh server handshake and ClientHello for the positive test to avoid replay protection
+	freshServerHandshake := NewHandshake(serverIdentity, swarmID)
+
+	freshClientHello, err := clientHandshake.CreateClientHello()
+	if err != nil {
+		t.Fatalf("Failed to create fresh ClientHello: %v", err)
+	}
 
 	// Should work with correct signature
-	_, err = serverHandshake.ProcessClientHello(clientHello)
+	_, err = freshServerHandshake.ProcessClientHello(freshClientHello)
 	if err != nil {
 		t.Errorf("Server should accept ClientHello with correct signature: %v", err)
 	}
@@ -142,6 +153,9 @@ func TestReplayAttackPrevention(t *testing.T) {
 	}
 
 	swarmID := "replay-test-swarm"
+
+	// Register the client's public key so the server can verify signatures
+	RegisterTestKey(clientIdentity.BID(), clientIdentity.SigningPublicKey)
 
 	// Create handshakes (sequence tracking is built-in)
 	clientHandshake := NewHandshake(clientIdentity, swarmID)

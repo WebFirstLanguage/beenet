@@ -41,20 +41,20 @@ type Manifest struct {
 
 // ProvideRecord represents a record indicating that a node provides specific content
 type ProvideRecord struct {
-	CID       CID      `cbor:"cid"`        // Content identifier being provided
-	Provider  string   `cbor:"provider"`   // BID of the providing node
-	Addresses []string `cbor:"addresses"`  // Network addresses where content can be fetched
-	Timestamp uint64   `cbor:"timestamp"`  // When this record was created (Unix milliseconds)
-	TTL       uint32   `cbor:"ttl"`        // Time-to-live in seconds
-	Signature []byte   `cbor:"signature"`  // Ed25519 signature over the record
+	CID       CID      `cbor:"cid"`       // Content identifier being provided
+	Provider  string   `cbor:"provider"`  // BID of the providing node
+	Addresses []string `cbor:"addresses"` // Network addresses where content can be fetched
+	Timestamp uint64   `cbor:"timestamp"` // When this record was created (Unix milliseconds)
+	TTL       uint32   `cbor:"ttl"`       // Time-to-live in seconds
+	Signature []byte   `cbor:"signature"` // Ed25519 signature over the record
 }
 
 // FetchRequest represents a request to fetch a specific chunk
 type FetchRequest struct {
-	CID      CID    `cbor:"cid"`       // Content identifier to fetch
-	Provider string `cbor:"provider"`  // BID of the provider to fetch from
-	Priority uint8  `cbor:"priority"`  // Request priority (0-255, higher = more urgent)
-	Timeout  uint32 `cbor:"timeout"`   // Timeout in milliseconds
+	CID      CID    `cbor:"cid"`      // Content identifier to fetch
+	Provider string `cbor:"provider"` // BID of the provider to fetch from
+	Priority uint8  `cbor:"priority"` // Request priority (0-255, higher = more urgent)
+	Timeout  uint32 `cbor:"timeout"`  // Timeout in milliseconds
 }
 
 // FetchResponse represents the response to a fetch request
@@ -83,19 +83,19 @@ type ContentStats struct {
 type ChunkStore interface {
 	// Put stores a chunk in the store
 	Put(chunk *Chunk) error
-	
+
 	// Get retrieves a chunk by its CID
 	Get(cid CID) (*Chunk, error)
-	
+
 	// Has checks if a chunk exists in the store
 	Has(cid CID) bool
-	
+
 	// Delete removes a chunk from the store
 	Delete(cid CID) error
-	
+
 	// List returns all CIDs in the store
 	List() ([]CID, error)
-	
+
 	// Stats returns storage statistics
 	Stats() (*ContentStats, error)
 }
@@ -104,16 +104,16 @@ type ChunkStore interface {
 type ContentService interface {
 	// Put processes a file and returns its manifest CID
 	Put(filepath string) (CID, error)
-	
+
 	// Get retrieves content by CID and reconstructs the original file
 	Get(cid CID, outputPath string) error
-	
+
 	// Publish announces that this node provides the given content
 	Publish(cid CID) error
-	
+
 	// Lookup finds providers for the given content
 	Lookup(cid CID) ([]*ProvideRecord, error)
-	
+
 	// Stats returns service statistics
 	Stats() (*ContentStats, error)
 }
@@ -135,7 +135,7 @@ func DefaultConfig() *Config {
 		ChunkSize:            1024 * 1024, // 1 MiB
 		ConcurrentFetches:    4,
 		FetchTimeout:         30 * time.Second,
-		ProvideRecordTTL:     3600, // 1 hour
+		ProvideRecordTTL:     3600,              // 1 hour
 		MaxCacheSize:         100 * 1024 * 1024, // 100 MiB
 		EnableIntegrityCheck: true,
 		StorePath:            "./chunks",

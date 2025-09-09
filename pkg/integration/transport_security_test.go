@@ -184,6 +184,9 @@ func TestTCPTransportWithNoiseIKHandshake(t *testing.T) {
 		t.Fatalf("Failed to create client node: %v", err)
 	}
 
+	// Register the client's public key so the server can verify signatures
+	noiseik.RegisterTestKey(clientNode.identity.BID(), clientNode.identity.SigningPublicKey)
+
 	// Start server
 	listener, err := serverNode.Listen(ctx, "127.0.0.1:0")
 	if err != nil {

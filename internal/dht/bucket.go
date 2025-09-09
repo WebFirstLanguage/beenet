@@ -13,12 +13,12 @@ import (
 type Bucket struct {
 	mu    sync.RWMutex
 	nodes []*Node
-	
+
 	// Bucket configuration
 	maxSize int
-	
+
 	// Replacement cache for when bucket is full
-	replacements []*Node
+	replacements    []*Node
 	maxReplacements int
 }
 
@@ -37,7 +37,7 @@ func NewBucket() *Bucket {
 func (b *Bucket) Add(node *Node) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	
+
 	// Check if node already exists
 	for i, existing := range b.nodes {
 		if existing.ID == node.ID {
@@ -47,13 +47,13 @@ func (b *Bucket) Add(node *Node) bool {
 			return true
 		}
 	}
-	
+
 	// If bucket has space, add the node
 	if len(b.nodes) < b.maxSize {
 		b.nodes = append(b.nodes, node)
 		return true
 	}
-	
+
 	// Bucket is full, add to replacement cache
 	b.addToReplacements(node)
 	return false
@@ -63,18 +63,18 @@ func (b *Bucket) Add(node *Node) bool {
 func (b *Bucket) Remove(nodeID NodeID) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	
+
 	for i, node := range b.nodes {
 		if node.ID == nodeID {
 			// Remove node
 			b.nodes = append(b.nodes[:i], b.nodes[i+1:]...)
-			
+
 			// Try to fill from replacement cache
 			b.promoteFromReplacements()
 			return true
 		}
 	}
-	
+
 	// Also remove from replacements if present
 	for i, node := range b.replacements {
 		if node.ID == nodeID {
@@ -82,7 +82,7 @@ func (b *Bucket) Remove(nodeID NodeID) bool {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -90,7 +90,7 @@ func (b *Bucket) Remove(nodeID NodeID) bool {
 func (b *Bucket) Get(nodeID NodeID) *Node {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	
+
 	for _, node := range b.nodes {
 		if node.ID == nodeID {
 			return node.Copy()
@@ -103,7 +103,7 @@ func (b *Bucket) Get(nodeID NodeID) *Node {
 func (b *Bucket) GetAll() []*Node {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	
+
 	result := make([]*Node, len(b.nodes))
 	for i, node := range b.nodes {
 		result[i] = node.Copy()
@@ -129,24 +129,24 @@ func (b *Bucket) IsFull() bool {
 func (b *Bucket) GetClosest(target NodeID, k int) []*Node {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	
+
 	if len(b.nodes) == 0 {
 		return nil
 	}
-	
+
 	// Create a copy of nodes for sorting
 	nodes := make([]*Node, len(b.nodes))
 	for i, node := range b.nodes {
 		nodes[i] = node.Copy()
 	}
-	
+
 	// Sort by distance to target
 	sort.Slice(nodes, func(i, j int) bool {
 		distI := nodes[i].ID.Distance(target)
 		distJ := nodes[j].ID.Distance(target)
 		return distI.Less(distJ)
 	})
-	
+
 	// Return up to k nodes
 	if k > len(nodes) {
 		k = len(nodes)
@@ -158,7 +158,7 @@ func (b *Bucket) GetClosest(target NodeID, k int) []*Node {
 func (b *Bucket) RemoveStale(timeout time.Duration) int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	
+
 	removed := 0
 	i := 0
 	for i < len(b.nodes) {
@@ -170,13 +170,13 @@ func (b *Bucket) RemoveStale(timeout time.Duration) int {
 			i++
 		}
 	}
-	
+
 	// Promote from replacements to fill gaps
 	for removed > 0 && len(b.replacements) > 0 {
 		b.promoteFromReplacements()
 		removed--
 	}
-	
+
 	return removed
 }
 
@@ -185,7 +185,7 @@ func (b *Bucket) moveToEnd(i int) {
 	if i == len(b.nodes)-1 {
 		return // Already at end
 	}
-	
+
 	node := b.nodes[i]
 	copy(b.nodes[i:], b.nodes[i+1:])
 	b.nodes[len(b.nodes)-1] = node
@@ -200,7 +200,7 @@ func (b *Bucket) addToReplacements(node *Node) {
 			return
 		}
 	}
-	
+
 	// Add to replacements
 	if len(b.replacements) < b.maxReplacements {
 		b.replacements = append(b.replacements, node)
@@ -216,11 +216,11 @@ func (b *Bucket) promoteFromReplacements() {
 	if len(b.replacements) == 0 || len(b.nodes) >= b.maxSize {
 		return
 	}
-	
+
 	// Take the most recent replacement
 	node := b.replacements[len(b.replacements)-1]
 	b.replacements = b.replacements[:len(b.replacements)-1]
-	
+
 	// Add to main bucket
 	b.nodes = append(b.nodes, node)
 }
