@@ -253,6 +253,93 @@ type PubSubMessageEnvelope struct {
 	Sig     []byte `cbor:"sig"`     // Ed25519 signature over canonical envelope
 }
 
+// Honeytag Protocol Message Bodies
+
+// HoneytagOpBody represents the body of a HONEYTAG_OP message (§12.4)
+type HoneytagOpBody struct {
+	Op   string      `cbor:"op"`   // Operation: "claim"|"refresh"|"release"|"transfer"|"delegate"|"revoke"|"resolve"
+	Body interface{} `cbor:"body"` // Operation-specific body
+}
+
+// HoneytagClaimBody represents the body of a claim operation
+type HoneytagClaimBody struct {
+	Name  string `cbor:"name"`  // Bare name to claim
+	Ver   uint64 `cbor:"ver"`   // Version number
+	TS    uint64 `cbor:"ts"`    // Timestamp
+	Lease uint64 `cbor:"lease"` // Lease expiration
+}
+
+// HoneytagRefreshBody represents the body of a refresh operation
+type HoneytagRefreshBody struct {
+	Name  string `cbor:"name"`  // Bare name to refresh
+	Ver   uint64 `cbor:"ver"`   // Version number (prev+1)
+	TS    uint64 `cbor:"ts"`    // Timestamp
+	Lease uint64 `cbor:"lease"` // New lease expiration
+}
+
+// HoneytagReleaseBody represents the body of a release operation
+type HoneytagReleaseBody struct {
+	Name  string `cbor:"name"`  // Bare name to release
+	Ver   uint64 `cbor:"ver"`   // Version number (prev+1)
+	TS    uint64 `cbor:"ts"`    // Timestamp
+	Lease uint64 `cbor:"lease"` // Set to ts (immediate expiry)
+}
+
+// HoneytagTransferBody represents the body of a transfer operation
+type HoneytagTransferBody struct {
+	Name     string `cbor:"name"`      // Bare name to transfer
+	NewOwner string `cbor:"new_owner"` // New owner BID
+	Ver      uint64 `cbor:"ver"`       // Version number (prev+1)
+	TS       uint64 `cbor:"ts"`        // Timestamp
+	SigOwner []byte `cbor:"sig_owner"` // Signature by current owner
+	SigNew   []byte `cbor:"sig_new"`   // Signature by new owner
+}
+
+// HoneytagDelegateBody represents the body of a delegate operation
+type HoneytagDelegateBody struct {
+	Owner    string   `cbor:"owner"`     // Owner BID
+	Device   string   `cbor:"device"`    // Device BID
+	Caps     []string `cbor:"caps"`      // Capabilities
+	Ver      uint64   `cbor:"ver"`       // Version number
+	TS       uint64   `cbor:"ts"`        // Timestamp
+	Expire   uint64   `cbor:"expire"`    // Expiration timestamp
+	SigOwner []byte   `cbor:"sig_owner"` // Signature by owner
+}
+
+// HoneytagRevokeBody represents the body of a revoke operation
+type HoneytagRevokeBody struct {
+	Owner    string `cbor:"owner"`     // Owner BID
+	Device   string `cbor:"device"`    // Device BID to revoke
+	Ver      uint64 `cbor:"ver"`       // Version number
+	TS       uint64 `cbor:"ts"`        // Timestamp
+	SigOwner []byte `cbor:"sig_owner"` // Signature by owner
+}
+
+// HoneytagResolveBody represents the body of a resolve operation
+type HoneytagResolveBody struct {
+	Query         string   `cbor:"query"`          // Query string (BID, handle, or bare name)
+	PreferredCaps []string `cbor:"preferred_caps"` // Optional preferred capabilities
+}
+
+// HoneytagResolveResponse represents the response to a resolve operation
+type HoneytagResolveResponse struct {
+	Kind   string               `cbor:"kind"`   // "bid"|"handle"|"bare"
+	Owner  string               `cbor:"owner"`  // Owner BID if known
+	Device string               `cbor:"device"` // Device BID (may be same as owner)
+	Handle string               `cbor:"handle"` // Handle if applicable
+	Addrs  []string             `cbor:"addrs"`  // Multiaddresses if available
+	Proof  HoneytagResolveProof `cbor:"proof"`  // Cryptographic proofs
+}
+
+// HoneytagResolveProof contains cryptographic proofs for resolution
+type HoneytagResolveProof struct {
+	Name        interface{}   `cbor:"name,omitempty"`         // NameRecord if applicable
+	HandleIndex interface{}   `cbor:"handle_index,omitempty"` // HandleIndex if applicable
+	Presence    interface{}   `cbor:"presence,omitempty"`     // PresenceRecord if applicable
+	Delegation  interface{}   `cbor:"delegation,omitempty"`   // DelegationRecord if applicable
+	Conflicts   []interface{} `cbor:"conflicts,omitempty"`    // Conflicting records if any
+}
+
 // Helper functions for creating common frame types
 
 // NewPingFrame creates a new PING frame
@@ -349,4 +436,88 @@ func NewGossipPruneFrame(from string, seq uint64, topic string, peers []string) 
 // NewPubSubMessageFrame creates a new PUBSUB_MSG frame
 func NewPubSubMessageFrame(from string, seq uint64, envelope *PubSubMessageEnvelope) *BaseFrame {
 	return NewBaseFrame(constants.KindPubSubMsg, from, seq, envelope)
+}
+
+// Honeytag Protocol Helper Functions
+
+// NewHoneytagOpFrame creates a new HONEYTAG_OP frame
+func NewHoneytagOpFrame(from string, seq uint64, op string, body interface{}) *BaseFrame {
+	return NewBaseFrame(constants.KindHoneytagOp, from, seq, &HoneytagOpBody{
+		Op:   op,
+		Body: body,
+	})
+}
+
+// NewHoneytagClaimFrame creates a new honeytag claim frame
+func NewHoneytagClaimFrame(from string, seq uint64, name string, ver uint64, ts uint64, lease uint64) *BaseFrame {
+	return NewHoneytagOpFrame(from, seq, "claim", &HoneytagClaimBody{
+		Name:  name,
+		Ver:   ver,
+		TS:    ts,
+		Lease: lease,
+	})
+}
+
+// NewHoneytagRefreshFrame creates a new honeytag refresh frame
+func NewHoneytagRefreshFrame(from string, seq uint64, name string, ver uint64, ts uint64, lease uint64) *BaseFrame {
+	return NewHoneytagOpFrame(from, seq, "refresh", &HoneytagRefreshBody{
+		Name:  name,
+		Ver:   ver,
+		TS:    ts,
+		Lease: lease,
+	})
+}
+
+// NewHoneytagReleaseFrame creates a new honeytag release frame
+func NewHoneytagReleaseFrame(from string, seq uint64, name string, ver uint64, ts uint64) *BaseFrame {
+	return NewHoneytagOpFrame(from, seq, "release", &HoneytagReleaseBody{
+		Name:  name,
+		Ver:   ver,
+		TS:    ts,
+		Lease: ts, // Set lease to ts for immediate expiry
+	})
+}
+
+// NewHoneytagTransferFrame creates a new honeytag transfer frame
+func NewHoneytagTransferFrame(from string, seq uint64, name string, newOwner string, ver uint64, ts uint64, sigOwner, sigNew []byte) *BaseFrame {
+	return NewHoneytagOpFrame(from, seq, "transfer", &HoneytagTransferBody{
+		Name:     name,
+		NewOwner: newOwner,
+		Ver:      ver,
+		TS:       ts,
+		SigOwner: sigOwner,
+		SigNew:   sigNew,
+	})
+}
+
+// NewHoneytagDelegateFrame creates a new honeytag delegate frame
+func NewHoneytagDelegateFrame(from string, seq uint64, owner, device string, caps []string, ver uint64, ts uint64, expire uint64, sigOwner []byte) *BaseFrame {
+	return NewHoneytagOpFrame(from, seq, "delegate", &HoneytagDelegateBody{
+		Owner:    owner,
+		Device:   device,
+		Caps:     caps,
+		Ver:      ver,
+		TS:       ts,
+		Expire:   expire,
+		SigOwner: sigOwner,
+	})
+}
+
+// NewHoneytagRevokeFrame creates a new honeytag revoke frame
+func NewHoneytagRevokeFrame(from string, seq uint64, owner, device string, ver uint64, ts uint64, sigOwner []byte) *BaseFrame {
+	return NewHoneytagOpFrame(from, seq, "revoke", &HoneytagRevokeBody{
+		Owner:    owner,
+		Device:   device,
+		Ver:      ver,
+		TS:       ts,
+		SigOwner: sigOwner,
+	})
+}
+
+// NewHoneytagResolveFrame creates a new honeytag resolve frame
+func NewHoneytagResolveFrame(from string, seq uint64, query string, preferredCaps []string) *BaseFrame {
+	return NewHoneytagOpFrame(from, seq, "resolve", &HoneytagResolveBody{
+		Query:         query,
+		PreferredCaps: preferredCaps,
+	})
 }

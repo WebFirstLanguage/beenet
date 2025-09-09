@@ -65,6 +65,16 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
+	case "name":
+		if err := nameCommand(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	case "resolve":
+		if err := resolveCommand(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 	default:
 		fmt.Printf("Unknown command: %s\n\n", command)
 		printUsage()
@@ -92,6 +102,8 @@ Commands:
   handle    Show current handle
   peers     Display discovered peer nodes
   seeds     Manage seed nodes (add/list)
+  name      Manage honeytag names (claim/refresh/release/transfer/delegate/revoke)
+  resolve   Resolve names to addresses and proofs
   version   Show version information
   help      Show this help message
 
@@ -531,5 +543,358 @@ func seedsAddCommand() error {
 	}
 	fmt.Printf("Address: %s\n", addr)
 
+	return nil
+}
+
+// nameCommand implements the name subcommand
+func nameCommand() error {
+	if len(os.Args) < 3 {
+		fmt.Println("Usage:")
+		fmt.Println("  bee name claim <name>                    - Claim a new name")
+		fmt.Println("  bee name refresh <name>                 - Refresh lease on existing name")
+		fmt.Println("  bee name release <name>                 - Release ownership of name")
+		fmt.Println("  bee name transfer <name> <new_owner>    - Transfer name to another owner")
+		fmt.Println("  bee name delegate <name> <delegate>     - Delegate name resolution")
+		fmt.Println("  bee name revoke <name>                  - Revoke delegation")
+		return nil
+	}
+
+	subcommand := os.Args[2]
+	switch subcommand {
+	case "claim":
+		return nameClaimCommand()
+	case "refresh":
+		return nameRefreshCommand()
+	case "release":
+		return nameReleaseCommand()
+	case "transfer":
+		return nameTransferCommand()
+	case "delegate":
+		return nameDelegateCommand()
+	case "revoke":
+		return nameRevokeCommand()
+	default:
+		return fmt.Errorf("unknown name subcommand: %s", subcommand)
+	}
+}
+
+// resolveCommand implements the resolve command
+func resolveCommand() error {
+	if len(os.Args) < 3 {
+		return fmt.Errorf("usage: bee resolve <name>")
+	}
+
+	query := os.Args[2]
+
+	// Connect to control API
+	conn, err := net.Dial("tcp", "127.0.0.1:27777")
+	if err != nil {
+		return fmt.Errorf("failed to connect to agent (is it running?): %w", err)
+	}
+	defer conn.Close()
+
+	// Send resolve request
+	request := map[string]interface{}{
+		"method": "honeytag.resolve",
+		"params": map[string]interface{}{
+			"query": query,
+		},
+	}
+
+	if err := json.NewEncoder(conn).Encode(request); err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+
+	// Read response
+	var response map[string]interface{}
+	if err := json.NewDecoder(conn).Decode(&response); err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Check for error
+	if errMsg, exists := response["error"]; exists {
+		return fmt.Errorf("resolution failed: %v", errMsg)
+	}
+
+	// Display result
+	if result, exists := response["result"]; exists {
+		resultMap := result.(map[string]interface{})
+		fmt.Printf("Query: %s\n", query)
+		fmt.Printf("Kind: %s\n", resultMap["kind"])
+		fmt.Printf("Owner: %s\n", resultMap["owner"])
+		fmt.Printf("Device: %s\n", resultMap["device"])
+		if handle, exists := resultMap["handle"]; exists && handle != "" {
+			fmt.Printf("Handle: %s\n", handle)
+		}
+		if addrs, exists := resultMap["addrs"]; exists {
+			addrList := addrs.([]interface{})
+			if len(addrList) > 0 {
+				fmt.Printf("Addresses:\n")
+				for _, addr := range addrList {
+					fmt.Printf("  %s\n", addr)
+				}
+			} else {
+				fmt.Printf("Addresses: (offline)\n")
+			}
+		}
+		fmt.Printf("✓ Resolution successful with cryptographic proof\n")
+	}
+
+	return nil
+}
+
+// nameClaimCommand implements the name claim subcommand
+func nameClaimCommand() error {
+	if len(os.Args) < 4 {
+		return fmt.Errorf("usage: bee name claim <name>")
+	}
+
+	name := os.Args[3]
+
+	// Connect to control API
+	conn, err := net.Dial("tcp", "127.0.0.1:27777")
+	if err != nil {
+		return fmt.Errorf("failed to connect to agent (is it running?): %w", err)
+	}
+	defer conn.Close()
+
+	// Send claim request
+	request := map[string]interface{}{
+		"method": "honeytag.claim",
+		"params": map[string]interface{}{
+			"name": name,
+		},
+	}
+
+	if err := json.NewEncoder(conn).Encode(request); err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+
+	// Read response
+	var response map[string]interface{}
+	if err := json.NewDecoder(conn).Decode(&response); err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Check for error
+	if errMsg, exists := response["error"]; exists {
+		return fmt.Errorf("claim failed: %v", errMsg)
+	}
+
+	fmt.Printf("✓ Successfully claimed name: %s\n", name)
+	return nil
+}
+
+// nameRefreshCommand implements the name refresh subcommand
+func nameRefreshCommand() error {
+	if len(os.Args) < 4 {
+		return fmt.Errorf("usage: bee name refresh <name>")
+	}
+
+	name := os.Args[3]
+
+	// Connect to control API
+	conn, err := net.Dial("tcp", "127.0.0.1:27777")
+	if err != nil {
+		return fmt.Errorf("failed to connect to agent (is it running?): %w", err)
+	}
+	defer conn.Close()
+
+	// Send refresh request
+	request := map[string]interface{}{
+		"method": "honeytag.refresh",
+		"params": map[string]interface{}{
+			"name": name,
+		},
+	}
+
+	if err := json.NewEncoder(conn).Encode(request); err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+
+	// Read response
+	var response map[string]interface{}
+	if err := json.NewDecoder(conn).Decode(&response); err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Check for error
+	if errMsg, exists := response["error"]; exists {
+		return fmt.Errorf("refresh failed: %v", errMsg)
+	}
+
+	fmt.Printf("✓ Successfully refreshed name: %s\n", name)
+	return nil
+}
+
+// nameReleaseCommand implements the name release subcommand
+func nameReleaseCommand() error {
+	if len(os.Args) < 4 {
+		return fmt.Errorf("usage: bee name release <name>")
+	}
+
+	name := os.Args[3]
+
+	// Connect to control API
+	conn, err := net.Dial("tcp", "127.0.0.1:27777")
+	if err != nil {
+		return fmt.Errorf("failed to connect to agent (is it running?): %w", err)
+	}
+	defer conn.Close()
+
+	// Send release request
+	request := map[string]interface{}{
+		"method": "honeytag.release",
+		"params": map[string]interface{}{
+			"name": name,
+		},
+	}
+
+	if err := json.NewEncoder(conn).Encode(request); err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+
+	// Read response
+	var response map[string]interface{}
+	if err := json.NewDecoder(conn).Decode(&response); err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Check for error
+	if errMsg, exists := response["error"]; exists {
+		return fmt.Errorf("release failed: %v", errMsg)
+	}
+
+	fmt.Printf("✓ Successfully released name: %s\n", name)
+	return nil
+}
+
+// nameTransferCommand implements the name transfer subcommand
+func nameTransferCommand() error {
+	if len(os.Args) < 5 {
+		return fmt.Errorf("usage: bee name transfer <name> <new_owner>")
+	}
+
+	name := os.Args[3]
+	newOwner := os.Args[4]
+
+	// Connect to control API
+	conn, err := net.Dial("tcp", "127.0.0.1:27777")
+	if err != nil {
+		return fmt.Errorf("failed to connect to agent (is it running?): %w", err)
+	}
+	defer conn.Close()
+
+	// Send transfer request
+	request := map[string]interface{}{
+		"method": "honeytag.transfer",
+		"params": map[string]interface{}{
+			"name":      name,
+			"new_owner": newOwner,
+		},
+	}
+
+	if err := json.NewEncoder(conn).Encode(request); err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+
+	// Read response
+	var response map[string]interface{}
+	if err := json.NewDecoder(conn).Decode(&response); err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Check for error
+	if errMsg, exists := response["error"]; exists {
+		return fmt.Errorf("transfer failed: %v", errMsg)
+	}
+
+	fmt.Printf("✓ Successfully transferred name %s to %s\n", name, newOwner)
+	return nil
+}
+
+// nameDelegateCommand implements the name delegate subcommand
+func nameDelegateCommand() error {
+	if len(os.Args) < 5 {
+		return fmt.Errorf("usage: bee name delegate <name> <delegate>")
+	}
+
+	name := os.Args[3]
+	delegate := os.Args[4]
+
+	// Connect to control API
+	conn, err := net.Dial("tcp", "127.0.0.1:27777")
+	if err != nil {
+		return fmt.Errorf("failed to connect to agent (is it running?): %w", err)
+	}
+	defer conn.Close()
+
+	// Send delegate request
+	request := map[string]interface{}{
+		"method": "honeytag.delegate",
+		"params": map[string]interface{}{
+			"name":     name,
+			"delegate": delegate,
+		},
+	}
+
+	if err := json.NewEncoder(conn).Encode(request); err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+
+	// Read response
+	var response map[string]interface{}
+	if err := json.NewDecoder(conn).Decode(&response); err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Check for error
+	if errMsg, exists := response["error"]; exists {
+		return fmt.Errorf("delegation failed: %v", errMsg)
+	}
+
+	fmt.Printf("✓ Successfully delegated name %s to %s\n", name, delegate)
+	return nil
+}
+
+// nameRevokeCommand implements the name revoke subcommand
+func nameRevokeCommand() error {
+	if len(os.Args) < 4 {
+		return fmt.Errorf("usage: bee name revoke <name>")
+	}
+
+	name := os.Args[3]
+
+	// Connect to control API
+	conn, err := net.Dial("tcp", "127.0.0.1:27777")
+	if err != nil {
+		return fmt.Errorf("failed to connect to agent (is it running?): %w", err)
+	}
+	defer conn.Close()
+
+	// Send revoke request
+	request := map[string]interface{}{
+		"method": "honeytag.revoke",
+		"params": map[string]interface{}{
+			"name": name,
+		},
+	}
+
+	if err := json.NewEncoder(conn).Encode(request); err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+
+	// Read response
+	var response map[string]interface{}
+	if err := json.NewDecoder(conn).Decode(&response); err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Check for error
+	if errMsg, exists := response["error"]; exists {
+		return fmt.Errorf("revoke failed: %v", errMsg)
+	}
+
+	fmt.Printf("✓ Successfully revoked delegation for name: %s\n", name)
 	return nil
 }

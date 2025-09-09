@@ -24,6 +24,17 @@ type PresenceRecord struct {
 	Sig    []byte   `cbor:"sig"`    // Ed25519 signature
 }
 
+// HandleIndex represents handle → BID binding as specified in §12.3
+type HandleIndex struct {
+	V      uint16 `cbor:"v"`      // Version (always 1)
+	Swarm  string `cbor:"swarm"`  // SwarmID
+	Handle string `cbor:"handle"` // "nickname~honeytag"
+	BID    string `cbor:"bid"`    // BID
+	TS     uint64 `cbor:"ts"`     // Timestamp (ms since Unix epoch)
+	Expire uint64 `cbor:"expire"` // Expiration timestamp (~10-30 min)
+	Sig    []byte `cbor:"sig"`    // Ed25519 signature over canonical(...)
+}
+
 // ProvideRecord represents a content provider record as specified in §14
 type ProvideRecord struct {
 	V        uint16   `cbor:"v"`        // Version (always 1)
@@ -40,14 +51,14 @@ func NewPresenceRecord(swarmID string, identity *identity.Identity, addrs []stri
 	if identity == nil {
 		return nil, fmt.Errorf("identity is required")
 	}
-	
+
 	// Generate handle from identity
 	nickname := "bee" // Default nickname, should be configurable
 	handle := identity.Handle(nickname)
-	
+
 	// Calculate expiration time
 	expire := time.Now().Add(constants.PresenceTTL).UnixMilli()
-	
+
 	record := &PresenceRecord{
 		V:      1,
 		Swarm:  swarmID,
@@ -57,12 +68,28 @@ func NewPresenceRecord(swarmID string, identity *identity.Identity, addrs []stri
 		Caps:   caps,
 		Expire: uint64(expire),
 	}
-	
+
 	// Sign the record
 	if err := record.Sign(identity.SigningPrivateKey); err != nil {
 		return nil, fmt.Errorf("failed to sign presence record: %w", err)
 	}
-	
+
+	return record, nil
+}
+
+// NewHandleIndex creates a new HandleIndex for handle → BID binding
+func NewHandleIndex(swarmID, handle, bid string) (*HandleIndex, error) {
+	now := uint64(time.Now().UnixMilli())
+
+	record := &HandleIndex{
+		V:      1,
+		Swarm:  swarmID,
+		Handle: handle,
+		BID:    bid,
+		TS:     now,
+		Expire: now + uint64(constants.HandleIndexExpire.Milliseconds()),
+	}
+
 	return record, nil
 }
 
@@ -78,16 +105,16 @@ func (pr *PresenceRecord) Sign(privateKey ed25519.PrivateKey) error {
 		Caps:   pr.Caps,
 		Expire: pr.Expire,
 	}
-	
+
 	// Canonicalize the unsigned record
 	canonical, err := cborcanon.Marshal(unsigned)
 	if err != nil {
 		return fmt.Errorf("failed to canonicalize record: %w", err)
 	}
-	
+
 	// Sign the canonical representation
 	pr.Sig = ed25519.Sign(privateKey, canonical)
-	
+
 	return nil
 }
 
@@ -96,7 +123,7 @@ func (pr *PresenceRecord) Verify(publicKey ed25519.PublicKey) error {
 	if len(pr.Sig) == 0 {
 		return fmt.Errorf("record is not signed")
 	}
-	
+
 	// Create a copy without signature for verification
 	unsigned := &PresenceRecord{
 		V:      pr.V,
@@ -107,19 +134,34 @@ func (pr *PresenceRecord) Verify(publicKey ed25519.PublicKey) error {
 		Caps:   pr.Caps,
 		Expire: pr.Expire,
 	}
-	
+
 	// Canonicalize the unsigned record
 	canonical, err := cborcanon.Marshal(unsigned)
 	if err != nil {
 		return fmt.Errorf("failed to canonicalize record: %w", err)
 	}
-	
+
 	// Verify the signature
 	if !ed25519.Verify(publicKey, canonical, pr.Sig) {
 		return fmt.Errorf("invalid signature")
 	}
-	
+
 	return nil
+}
+
+// Sign signs the HandleIndex with the given private key
+func (hi *HandleIndex) Sign(privateKey ed25519.PrivateKey) error {
+	sigData, err := cborcanon.EncodeForSigning(hi, "sig")
+	if err != nil {
+		return fmt.Errorf("failed to encode HandleIndex for signing: %w", err)
+	}
+	hi.Sig = ed25519.Sign(privateKey, sigData)
+	return nil
+}
+
+// IsExpired checks if the HandleIndex has expired
+func (hi *HandleIndex) IsExpired() bool {
+	return uint64(time.Now().UnixMilli()) > hi.Expire
 }
 
 // IsExpired checks if the presence record has expired
@@ -132,31 +174,31 @@ func (pr *PresenceRecord) IsValid() error {
 	if pr.V != 1 {
 		return fmt.Errorf("invalid version: %d", pr.V)
 	}
-	
+
 	if pr.Swarm == "" {
 		return fmt.Errorf("swarm ID is required")
 	}
-	
+
 	if pr.Bee == "" {
 		return fmt.Errorf("bee ID is required")
 	}
-	
+
 	if pr.Handle == "" {
 		return fmt.Errorf("handle is required")
 	}
-	
+
 	if len(pr.Addrs) == 0 {
 		return fmt.Errorf("at least one address is required")
 	}
-	
+
 	if pr.Expire == 0 {
 		return fmt.Errorf("expiration time is required")
 	}
-	
+
 	if len(pr.Sig) == 0 {
 		return fmt.Errorf("signature is required")
 	}
-	
+
 	return nil
 }
 
@@ -184,7 +226,7 @@ func GetHandleKey(swarmID, handle string) []byte {
 func NewProvideRecord(swarmID, cid, providerBID string, addrs []string, privateKey ed25519.PrivateKey) (*ProvideRecord, error) {
 	// Calculate expiration time
 	expire := time.Now().Add(constants.PresenceTTL).UnixMilli()
-	
+
 	record := &ProvideRecord{
 		V:        1,
 		Swarm:    swarmID,
@@ -193,12 +235,12 @@ func NewProvideRecord(swarmID, cid, providerBID string, addrs []string, privateK
 		Addrs:    addrs,
 		Expire:   uint64(expire),
 	}
-	
+
 	// Sign the record
 	if err := record.Sign(privateKey); err != nil {
 		return nil, fmt.Errorf("failed to sign provide record: %w", err)
 	}
-	
+
 	return record, nil
 }
 
@@ -213,16 +255,16 @@ func (pr *ProvideRecord) Sign(privateKey ed25519.PrivateKey) error {
 		Addrs:    pr.Addrs,
 		Expire:   pr.Expire,
 	}
-	
+
 	// Canonicalize the unsigned record
 	canonical, err := cborcanon.Marshal(unsigned)
 	if err != nil {
 		return fmt.Errorf("failed to canonicalize record: %w", err)
 	}
-	
+
 	// Sign the canonical representation
 	pr.Sig = ed25519.Sign(privateKey, canonical)
-	
+
 	return nil
 }
 
@@ -231,7 +273,7 @@ func (pr *ProvideRecord) Verify(publicKey ed25519.PublicKey) error {
 	if len(pr.Sig) == 0 {
 		return fmt.Errorf("record is not signed")
 	}
-	
+
 	// Create a copy without signature for verification
 	unsigned := &ProvideRecord{
 		V:        pr.V,
@@ -241,18 +283,18 @@ func (pr *ProvideRecord) Verify(publicKey ed25519.PublicKey) error {
 		Addrs:    pr.Addrs,
 		Expire:   pr.Expire,
 	}
-	
+
 	// Canonicalize the unsigned record
 	canonical, err := cborcanon.Marshal(unsigned)
 	if err != nil {
 		return fmt.Errorf("failed to canonicalize record: %w", err)
 	}
-	
+
 	// Verify the signature
 	if !ed25519.Verify(publicKey, canonical, pr.Sig) {
 		return fmt.Errorf("invalid signature")
 	}
-	
+
 	return nil
 }
 
@@ -266,31 +308,31 @@ func (pr *ProvideRecord) IsValid() error {
 	if pr.V != 1 {
 		return fmt.Errorf("invalid version: %d", pr.V)
 	}
-	
+
 	if pr.Swarm == "" {
 		return fmt.Errorf("swarm ID is required")
 	}
-	
+
 	if pr.CID == "" {
 		return fmt.Errorf("CID is required")
 	}
-	
+
 	if pr.Provider == "" {
 		return fmt.Errorf("provider BID is required")
 	}
-	
+
 	if len(pr.Addrs) == 0 {
 		return fmt.Errorf("at least one address is required")
 	}
-	
+
 	if pr.Expire == 0 {
 		return fmt.Errorf("expiration time is required")
 	}
-	
+
 	if len(pr.Sig) == 0 {
 		return fmt.Errorf("signature is required")
 	}
-	
+
 	return nil
 }
 
