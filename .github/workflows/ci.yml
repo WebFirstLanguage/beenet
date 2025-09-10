@@ -49,12 +49,10 @@ jobs:
     - name: Vet
       run: go vet ./...
 
-    - name: Install golangci-lint
-      run: |
-        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.61.0
-
-    - name: Lint
-      run: golangci-lint run
+    - name: Lint with golangci-lint
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
 
   # Unit tests
   test:

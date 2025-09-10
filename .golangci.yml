@@ -5,13 +5,10 @@ run:
   timeout: 5m
   issues-exit-code: 1
   tests: true
-  skip-dirs:
-    - vendor
-  skip-files:
-    - ".*\\.pb\\.go$"
 
 output:
-  format: colored-line-number
+  formats:
+    - format: colored-line-number
   print-issued-lines: true
   print-linter-name: true
 
@@ -21,8 +18,10 @@ linters-settings:
     check-blank: true
 
   govet:
-    check-shadowing: true
     enable-all: true
+    
+  shadow:
+    strict: true
 
   gocyclo:
     min-complexity: 15
@@ -67,12 +66,21 @@ linters-settings:
   nestif:
     min-complexity: 4
 
-  gomnd:
-    settings:
-      mnd:
-        checks: argument,case,condition,operation,return,assign
-        ignored-numbers: 0,1,2,3
-        ignored-functions: strings.SplitN
+  mnd:
+    checks:
+      - argument
+      - case
+      - condition
+      - operation
+      - return
+      - assign
+    ignored-numbers:
+      - 0
+      - 1
+      - 2
+      - 3
+    ignored-functions:
+      - strings.SplitN
 
   godox:
     keywords:
@@ -103,7 +111,7 @@ linters:
     - gocyclo
     - gofmt
     - goimports
-    - gomnd
+    - mnd
     - goprintffuncname
     - gosec
     - gosimple
@@ -115,6 +123,7 @@ linters:
     - noctx
     - nolintlint
     - rowserrcheck
+    - shadow
     - staticcheck
     - stylecheck
     - typecheck
@@ -124,10 +133,14 @@ linters:
     - whitespace
 
 issues:
+  exclude-dirs:
+    - vendor
+  exclude-files:
+    - ".*\\.pb\\.go$"
   exclude-rules:
     - path: _test\.go
       linters:
-        - gomnd
+        - mnd
         - funlen
         - gocyclo
         - dupl
