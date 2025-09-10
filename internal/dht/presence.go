@@ -24,10 +24,9 @@ type PresenceManager struct {
 	currentRecord *PresenceRecord
 
 	// Refresh management
-	refreshTicker *time.Ticker
-	ctx           context.Context
-	cancel        context.CancelFunc
-	done          chan struct{}
+	ctx    context.Context
+	cancel context.CancelFunc
+	done   chan struct{}
 
 	// Configuration
 	addresses    []string
@@ -99,7 +98,6 @@ func (pm *PresenceManager) Start(ctx context.Context) error {
 	}
 
 	// Start refresh cycle
-	pm.refreshTicker = time.NewTicker(constants.PresenceRefresh)
 	go pm.refreshLoop()
 
 	return nil
@@ -108,17 +106,11 @@ func (pm *PresenceManager) Start(ctx context.Context) error {
 // Stop stops the presence manager
 func (pm *PresenceManager) Stop() error {
 	pm.mu.Lock()
-	defer pm.mu.Unlock()
-
 	if pm.cancel != nil {
 		pm.cancel()
 		pm.cancel = nil
 	}
-
-	if pm.refreshTicker != nil {
-		pm.refreshTicker.Stop()
-		pm.refreshTicker = nil
-	}
+	pm.mu.Unlock()
 
 	// Wait for refresh loop to finish
 	select {
@@ -271,11 +263,15 @@ func (pm *PresenceManager) publishPresence() error {
 func (pm *PresenceManager) refreshLoop() {
 	defer close(pm.done)
 
+	// Create local ticker to avoid race conditions
+	ticker := time.NewTicker(constants.PresenceRefresh)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-pm.ctx.Done():
 			return
-		case <-pm.refreshTicker.C:
+		case <-ticker.C:
 			pm.mu.Lock()
 			if err := pm.publishPresence(); err != nil {
 				fmt.Printf("Failed to refresh presence: %v\n", err)

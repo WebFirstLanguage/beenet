@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(go:*)"
+      "Bash(go:*)",
+      "Bash(export CGO_ENABLED=1)"
     ],
     "deny": [],
     "ask": []
