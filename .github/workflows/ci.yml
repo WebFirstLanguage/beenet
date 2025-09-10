@@ -236,7 +236,7 @@ jobs:
         go mod tidy
 
     - name: Install gosec
-      run: go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+      run: go install github.com/securecodewarrior/gosec/v2@latest
 
     - name: Run Gosec Security Scanner
       run: gosec ./...
